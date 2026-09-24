@@ -9,6 +9,8 @@ O projeto tem como objetivo desenvolver uma aplicação para controle de estoque
 ## 👥 Integrantes
 
 * **Ferdinando Rainert**
+* **Gabriel Angelo Foppa**
+* **Christoffer Henrique da Silva Souza**
 
 > Caso o projeto possua outros integrantes, adicionar os respectivos nomes nesta seção.
 
