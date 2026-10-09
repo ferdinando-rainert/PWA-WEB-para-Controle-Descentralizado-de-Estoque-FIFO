@@ -1,0 +1,137 @@
+-- =====================================================================
+--  BANCO DE DADOS: ESTOQUE FIFO (MySQL 8.0.16 ou superior)
+--  Controle descentralizado de estoque com regra FIFO
+-- =====================================================================
+
+CREATE DATABASE IF NOT EXISTS estoque_fifo
+  DEFAULT CHARACTER SET utf8mb4
+  DEFAULT COLLATE utf8mb4_0900_ai_ci;
+
+USE estoque_fifo;
+
+-- ---------------------------------------------------------------------
+-- PRODUTO
+-- ---------------------------------------------------------------------
+CREATE TABLE produto (
+  id INT PRIMARY KEY AUTO_INCREMENT,
+  sku VARCHAR(40) NOT NULL UNIQUE,
+  nome VARCHAR(120) NOT NULL,
+  unidade_medida VARCHAR(10) NOT NULL,
+  estoque_minimo DECIMAL(14,3) NOT NULL DEFAULT 0,
+  ativo BOOLEAN NOT NULL DEFAULT TRUE
+);
+
+-- ---------------------------------------------------------------------
+-- LOTE (cada entrada de produto gera um lote; data_entrada define o FIFO)
+-- ---------------------------------------------------------------------
+CREATE TABLE lote (
+  id INT PRIMARY KEY AUTO_INCREMENT,
+  produto_id INT NOT NULL,
+  codigo_lote VARCHAR(40) NOT NULL,
+  data_entrada DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  data_validade DATE,
+  quantidade_inicial DECIMAL(14,3) NOT NULL,
+  FOREIGN KEY (produto_id) REFERENCES produto(id),
+  INDEX idx_lote_fifo (produto_id, data_entrada)
+);
+
+-- ---------------------------------------------------------------------
+-- LOCAL_ESTOQUE (unidade ou setor: controle descentralizado)
+-- ---------------------------------------------------------------------
+CREATE TABLE local_estoque (
+  id INT PRIMARY KEY AUTO_INCREMENT,
+  nome VARCHAR(80) NOT NULL UNIQUE,
+  descricao VARCHAR(255),
+  ativo BOOLEAN NOT NULL DEFAULT TRUE
+);
+
+-- ---------------------------------------------------------------------
+-- USUARIO
+-- ---------------------------------------------------------------------
+CREATE TABLE usuario (
+  id INT PRIMARY KEY AUTO_INCREMENT,
+  nome VARCHAR(100) NOT NULL,
+  email VARCHAR(120) NOT NULL UNIQUE,
+  senha_hash VARCHAR(255) NOT NULL,
+  perfil ENUM('ADMIN','GESTOR','OPERADOR') NOT NULL DEFAULT 'OPERADOR',
+  ativo BOOLEAN NOT NULL DEFAULT TRUE
+);
+
+-- ---------------------------------------------------------------------
+-- SALDO_LOTE_LOCAL (quanto de cada lote existe em cada local)
+-- ---------------------------------------------------------------------
+CREATE TABLE saldo_lote_local (
+  lote_id INT NOT NULL,
+  local_id INT NOT NULL,
+  quantidade DECIMAL(14,3) NOT NULL DEFAULT 0,
+  PRIMARY KEY (lote_id, local_id),
+  FOREIGN KEY (lote_id) REFERENCES lote(id),
+  FOREIGN KEY (local_id) REFERENCES local_estoque(id),
+  CONSTRAINT chk_saldo_nao_negativo CHECK (quantidade >= 0)
+);
+
+-- ---------------------------------------------------------------------
+-- MOVIMENTACAO (histórico: nunca é apagado em operações comuns)
+-- uuid_cliente evita duplicidade quando o PWA sincroniza dados offline
+-- fifo_ignorado + justificativa registram saídas fora da ordem FIFO
+-- ---------------------------------------------------------------------
+CREATE TABLE movimentacao (
+  id BIGINT PRIMARY KEY AUTO_INCREMENT,
+  uuid_cliente CHAR(36) NOT NULL UNIQUE,
+  tipo ENUM('ENTRADA','SAIDA','TRANSFERENCIA','AJUSTE') NOT NULL,
+  lote_id INT NOT NULL,
+  local_origem_id INT NULL,
+  local_destino_id INT NULL,
+  quantidade DECIMAL(14,3) NOT NULL,
+  usuario_id INT NOT NULL,
+  data_hora_cliente DATETIME NOT NULL,
+  fifo_ignorado BOOLEAN NOT NULL DEFAULT FALSE,
+  justificativa VARCHAR(255),
+  FOREIGN KEY (lote_id) REFERENCES lote(id),
+  FOREIGN KEY (local_origem_id) REFERENCES local_estoque(id),
+  FOREIGN KEY (local_destino_id) REFERENCES local_estoque(id),
+  FOREIGN KEY (usuario_id) REFERENCES usuario(id),
+  CONSTRAINT chk_mov_quantidade_positiva CHECK (quantidade > 0)
+);
+
+-- =====================================================================
+--  DADOS DE EXEMPLO (reproduz o exemplo FIFO do README: lotes de 10, 20 e 15)
+-- =====================================================================
+
+INSERT INTO local_estoque (nome, descricao) VALUES
+  ('Almoxarifado Central', 'Depósito principal'),
+  ('Cozinha', 'Setor de preparo'),
+  ('Loja 01', 'Unidade de venda');
+
+INSERT INTO usuario (nome, email, senha_hash, perfil) VALUES
+  ('Administrador', 'admin@estoque.com', 'TROCAR_PELO_HASH_DA_SENHA', 'ADMIN');
+
+INSERT INTO produto (sku, nome, unidade_medida, estoque_minimo) VALUES
+  ('ARR-5KG', 'Arroz 5kg', 'UN', 10),
+  ('FEI-1KG', 'Feijão 1kg', 'UN', 20),
+  ('OLE-900', 'Óleo de soja 900ml', 'UN', 15);
+
+INSERT INTO lote (produto_id, codigo_lote, data_entrada, data_validade, quantidade_inicial) VALUES
+  (1, 'L001', '2026-09-01 08:00:00', '2027-03-01', 10),
+  (1, 'L002', '2026-09-05 08:00:00', '2027-03-05', 20),
+  (1, 'L003', '2026-09-10 08:00:00', '2027-03-10', 15);
+
+INSERT INTO saldo_lote_local (lote_id, local_id, quantidade) VALUES
+  (1, 1, 10),
+  (2, 1, 20),
+  (3, 1, 15);
+
+INSERT INTO movimentacao (uuid_cliente, tipo, lote_id, local_destino_id, quantidade, usuario_id, data_hora_cliente) VALUES
+  (UUID(), 'ENTRADA', 1, 1, 10, 1, '2026-09-01 08:00:00'),
+  (UUID(), 'ENTRADA', 2, 1, 20, 1, '2026-09-05 08:00:00'),
+  (UUID(), 'ENTRADA', 3, 1, 15, 1, '2026-09-10 08:00:00');
+
+-- =====================================================================
+--  CONSULTA FIFO: lotes do produto 1 no local 1, do mais antigo ao mais novo
+--  (o primeiro da lista é o próximo a sair)
+-- =====================================================================
+-- SELECT l.codigo_lote, l.data_entrada, s.quantidade
+--   FROM saldo_lote_local s
+--   JOIN lote l ON l.id = s.lote_id
+--  WHERE l.produto_id = 1 AND s.local_id = 1 AND s.quantidade > 0
+--  ORDER BY l.data_entrada ASC, l.id ASC;
