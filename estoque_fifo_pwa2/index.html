@@ -1,0 +1,2183 @@
+<!DOCTYPE html>
+<html lang="pt-BR" class="h-full bg-slate-50">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Estoque FIFO - Sistema Descentralizado PWA</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- FontAwesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Google Fonts Inter -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                    },
+                    colors: {
+                        brand: {
+                            50: '#f0fdf4',
+                            100: '#dcfce7',
+                            500: '#22c55e',
+                            600: '#16a34a',
+                            700: '#15803d',
+                            800: '#166534',
+                            900: '#14532d',
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: #f1f5f9; }
+        ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+        .fifo-pulse {
+            animation: pulse-border 2s infinite;
+        }
+        @keyframes pulse-border {
+            0%, 100% { border-color: rgba(34, 197, 94, 0.8); box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.4); }
+            50% { border-color: rgba(34, 197, 94, 1); box-shadow: 0 0 0 6px rgba(34, 197, 94, 0.1); }
+        }
+    </style>
+</head>
+<body class="h-full font-sans antialiased text-slate-800 bg-slate-50 flex flex-col md:flex-row overflow-x-hidden">
+
+    <!-- Mobile Navigation Toggle -->
+    <div class="md:hidden bg-slate-900 text-white p-4 flex justify-between items-center sticky top-0 z-40 shadow-md">
+        <div class="flex items-center space-x-2">
+            <i class="fa-solid fa-boxes-stacked text-emerald-400 text-xl"></i>
+            <span class="font-bold text-lg tracking-tight">Estoque FIFO</span>
+        </div>
+        <button id="mobileMenuBtn" class="text-slate-300 hover:text-white p-2">
+            <i class="fa-solid fa-bars text-xl"></i>
+        </button>
+    </div>
+
+    <!-- Sidebar Component -->
+    <aside id="sidebar" class="fixed inset-y-0 left-0 z-50 w-64 bg-slate-900 text-slate-300 flex flex-col transform -translate-x-full md:translate-x-0 md:static transition-transform duration-200 ease-in-out shadow-xl">
+        <!-- Sidebar Header -->
+        <div class="p-5 border-b border-slate-800 flex items-center justify-between">
+            <div class="flex items-center space-x-3">
+                <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-emerald-600 to-teal-400 flex items-center justify-center text-white shadow-lg shadow-emerald-900/30">
+                    <i class="fa-solid fa-boxes-stacked text-lg"></i>
+                </div>
+                <div>
+                    <h1 class="font-bold text-white text-base leading-tight">Estoque FIFO</h1>
+                    <span class="text-xs text-emerald-400 font-medium">PWA Descentralizado</span>
+                </div>
+            </div>
+            <button id="closeMobileSidebar" class="md:hidden text-slate-400 hover:text-white">
+                <i class="fa-solid fa-xmark text-lg"></i>
+            </button>
+        </div>
+
+        <!-- User Selector & Status Panel -->
+        <div class="p-4 bg-slate-800/60 border-b border-slate-800">
+            <label class="text-xs font-semibold uppercase tracking-wider text-slate-400 mb-1.5 block">Operador Atual</label>
+            <div class="relative">
+                <select id="currentUserSelect" onchange="changeCurrentUser(this.value)" class="w-full bg-slate-900 text-xs text-slate-200 rounded-lg border border-slate-700 p-2.5 pr-8 focus:ring-2 focus:ring-emerald-500 focus:outline-none appearance-none cursor-pointer">
+                </select>
+                <i class="fa-solid fa-chevron-down absolute right-2.5 top-3 text-slate-400 text-xs pointer-events-none"></i>
+            </div>
+            <div id="currentUserBadge" class="mt-2 flex items-center justify-between text-xs text-slate-400">
+                <span id="userRoleBadge" class="px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-400 font-medium text-[11px]">ADMIN</span>
+                <span id="userEmailLabel" class="truncate max-w-[120px] text-slate-400">admin@estoque.com</span>
+            </div>
+        </div>
+
+        <!-- Navigation Links -->
+        <nav class="flex-1 overflow-y-auto p-3 space-y-1">
+            <a href="#dashboard" onclick="navigateTo('dashboard')" class="nav-item active flex items-center space-x-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors text-white bg-emerald-600 shadow-sm">
+                <i class="fa-solid fa-chart-pie w-5 text-center"></i>
+                <span>Dashboard</span>
+            </a>
+            <a href="#consulta-fifo" onclick="navigateTo('consulta-fifo')" class="nav-item flex items-center space-x-3 px-3 py-2.5 rounded-lg text-sm font-medium text-slate-400 hover:text-slate-200 hover:bg-slate-800/80 transition-colors">
+                <i class="fa-solid fa-layer-group w-5 text-center"></i>
+                <span>Consulta FIFO</span>
+            </a>
+            <a href="#entradas" onclick="navigateTo('entradas')" class="nav-item flex items-center space-x-3 px-3 py-2.5 rounded-lg text-sm font-medium text-slate-400 hover:text-slate-200 hover:bg-slate-800/80 transition-colors">
+                <i class="fa-solid fa-circle-plus w-5 text-center text-emerald-400"></i>
+                <span>Novas Entradas</span>
+            </a>
+            <a href="#saidas" onclick="navigateTo('saidas')" class="nav-item flex items-center space-x-3 px-3 py-2.5 rounded-lg text-sm font-medium text-slate-400 hover:text-slate-200 hover:bg-slate-800/80 transition-colors">
+                <i class="fa-solid fa-circle-minus w-5 text-center text-rose-400"></i>
+                <span>Saída de Estoque</span>
+            </a>
+            <a href="#transferencias" onclick="navigateTo('transferencias')" class="nav-item flex items-center space-x-3 px-3 py-2.5 rounded-lg text-sm font-medium text-slate-400 hover:text-slate-200 hover:bg-slate-800/80 transition-colors">
+                <i class="fa-solid fa-arrow-right-arrow-left w-5 text-center text-indigo-400"></i>
+                <span>Transferências</span>
+            </a>
+            <a href="#ajustes" onclick="navigateTo('ajustes')" class="nav-item flex items-center space-x-3 px-3 py-2.5 rounded-lg text-sm font-medium text-slate-400 hover:text-slate-200 hover:bg-slate-800/80 transition-colors">
+                <i class="fa-solid fa-sliders w-5 text-center text-amber-400"></i>
+                <span>Ajustes de Saldo</span>
+            </a>
+            <a href="#historico" onclick="navigateTo('historico')" class="nav-item flex items-center space-x-3 px-3 py-2.5 rounded-lg text-sm font-medium text-slate-400 hover:text-slate-200 hover:bg-slate-800/80 transition-colors">
+                <i class="fa-solid fa-clock-rotate-left w-5 text-center text-blue-400"></i>
+                <span>Histórico & Auditoria</span>
+            </a>
+
+            <div class="pt-4 pb-1">
+                <div class="px-3 text-xs font-semibold text-slate-500 uppercase tracking-wider">Cadastros Mestre</div>
+            </div>
+
+            <a href="#cadastros-produtos" onclick="navigateTo('cadastros-produtos')" class="nav-item flex items-center space-x-3 px-3 py-2 rounded-lg text-sm font-medium text-slate-400 hover:text-slate-200 hover:bg-slate-800/80 transition-colors">
+                <i class="fa-solid fa-box w-5 text-center"></i>
+                <span>Produtos</span>
+            </a>
+            <a href="#cadastros-locais" onclick="navigateTo('cadastros-locais')" class="nav-item flex items-center space-x-3 px-3 py-2 rounded-lg text-sm font-medium text-slate-400 hover:text-slate-200 hover:bg-slate-800/80 transition-colors">
+                <i class="fa-solid fa-warehouse w-5 text-center"></i>
+                <span>Locais de Estoque</span>
+            </a>
+            <a href="#cadastros-usuarios" onclick="navigateTo('cadastros-usuarios')" class="nav-item flex items-center space-x-3 px-3 py-2 rounded-lg text-sm font-medium text-slate-400 hover:text-slate-200 hover:bg-slate-800/80 transition-colors">
+                <i class="fa-solid fa-users w-5 text-center"></i>
+                <span>Usuários</span>
+            </a>
+        </nav>
+
+        <!-- Footer Button -->
+        <div class="p-4 border-t border-slate-800 bg-slate-950/40 text-xs text-slate-400 space-y-2">
+            <div class="flex justify-between items-center">
+                <span>Modo Offline (PWA):</span>
+                <span id="pwaStatusBadge" class="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold bg-emerald-500/20 text-emerald-400">
+                    <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 mr-1.5 animate-pulse"></span> Ativo
+                </span>
+            </div>
+            <button onclick="resetDataToEmpty()" class="w-full text-left text-[11px] text-slate-500 hover:text-rose-400 transition-colors pt-2 border-t border-slate-800/80 flex items-center justify-between">
+                <span><i class="fa-solid fa-trash-can mr-1"></i> Zerar Dados do Sistema</span>
+            </button>
+        </div>
+    </aside>
+
+    <!-- Main Content Container -->
+    <main class="flex-1 flex flex-col h-full min-w-0 overflow-y-auto">
+        <!-- Top App Bar -->
+        <header class="bg-white border-b border-slate-200 px-4 py-3 sm:px-6 flex flex-wrap items-center justify-between gap-3 sticky top-0 z-30 shadow-sm">
+            <div class="flex items-center space-x-3">
+                <h2 id="pageTitle" class="text-xl font-bold text-slate-800 tracking-tight">Dashboard</h2>
+            </div>
+
+            <!-- Offline & Sync Status Controls -->
+            <div class="flex items-center space-x-3">
+                <div class="flex items-center bg-slate-100 p-1 rounded-lg border border-slate-200">
+                    <button id="btnOnlineToggle" onclick="setOnlineMode(true)" class="px-2.5 py-1 text-xs font-semibold rounded-md transition-all bg-white text-emerald-700 shadow-sm">
+                        <i class="fa-solid fa-wifi mr-1"></i> Online
+                    </button>
+                    <button id="btnOfflineToggle" onclick="setOnlineMode(false)" class="px-2.5 py-1 text-xs font-semibold rounded-md transition-all text-slate-600 hover:text-slate-900">
+                        <i class="fa-solid fa-wifi-slash mr-1"></i> Offline
+                    </button>
+                </div>
+
+                <div class="relative">
+                    <button id="btnSyncData" onclick="syncOfflineQueue()" class="flex items-center space-x-2 px-3 py-1.5 text-xs font-semibold rounded-lg bg-amber-500 text-white hover:bg-amber-600 transition-all shadow-sm">
+                        <i class="fa-solid fa-rotate text-sm" id="syncSpinnerIcon"></i>
+                        <span>Sincronizar</span>
+                        <span id="syncQueueBadge" class="bg-amber-900 text-white px-1.5 py-0.2 rounded-full text-[10px] font-bold">0</span>
+                    </button>
+                </div>
+            </div>
+        </header>
+
+        <!-- Main Workspace Dynamic Views -->
+        <div class="p-4 sm:p-6 flex-1 max-w-7xl w-full mx-auto space-y-6">
+
+            <section id="view-dashboard" class="tab-content space-y-6">
+                <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+                    <div class="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-sm hover:shadow-md transition-shadow">
+                        <div class="flex items-center justify-between text-slate-500 mb-2">
+                            <span class="text-xs font-semibold uppercase tracking-wider">Produtos Ativos</span>
+                            <div class="p-2 bg-emerald-50 text-emerald-600 rounded-lg"><i class="fa-solid fa-box text-base"></i></div>
+                        </div>
+                        <div id="dashTotalProducts" class="text-2xl font-bold text-slate-900">0</div>
+                        <div class="text-xs text-slate-500 mt-1">Cadastrados no catálogo</div>
+                    </div>
+
+                    <div class="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-sm hover:shadow-md transition-shadow">
+                        <div class="flex items-center justify-between text-slate-500 mb-2">
+                            <span class="text-xs font-semibold uppercase tracking-wider">Saldo Total</span>
+                            <div class="p-2 bg-blue-50 text-blue-600 rounded-lg"><i class="fa-solid fa-cubes text-base"></i></div>
+                        </div>
+                        <div id="dashTotalBalance" class="text-2xl font-bold text-slate-900">0</div>
+                        <div class="text-xs text-slate-500 mt-1">Unidades em todos locais</div>
+                    </div>
+
+                    <div class="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-sm hover:shadow-md transition-shadow">
+                        <div class="flex items-center justify-between text-slate-500 mb-2">
+                            <span class="text-xs font-semibold uppercase tracking-wider">Estoque Mínimo</span>
+                            <div class="p-2 bg-amber-50 text-amber-600 rounded-lg"><i class="fa-solid fa-triangle-exclamation text-base"></i></div>
+                        </div>
+                        <div id="dashAlertCount" class="text-2xl font-bold text-amber-600">0</div>
+                        <div class="text-xs text-slate-500 mt-1">Produtos abaixo do mínimo</div>
+                    </div>
+
+                    <div class="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-sm hover:shadow-md transition-shadow">
+                        <div class="flex items-center justify-between text-slate-500 mb-2">
+                            <span class="text-xs font-semibold uppercase tracking-wider">Movimentações</span>
+                            <div class="p-2 bg-indigo-50 text-indigo-600 rounded-lg"><i class="fa-solid fa-arrow-right-arrow-left text-base"></i></div>
+                        </div>
+                        <div id="dashTotalMovements" class="text-2xl font-bold text-slate-900">0</div>
+                        <div class="text-xs text-slate-500 mt-1">Registros no histórico</div>
+                    </div>
+
+                    <div class="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-sm hover:shadow-md transition-shadow">
+                        <div class="flex items-center justify-between text-slate-500 mb-2">
+                            <span class="text-xs font-semibold uppercase tracking-wider">Conformidade FIFO</span>
+                            <div class="p-2 bg-teal-50 text-teal-600 rounded-lg"><i class="fa-solid fa-shield-check text-base"></i></div>
+                        </div>
+                        <div id="dashFifoCompliance" class="text-2xl font-bold text-emerald-600">100%</div>
+                        <div class="text-xs text-slate-500 mt-1">Taxa de saídas respeitadas</div>
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                    <div class="lg:col-span-2 space-y-6">
+                        <div class="bg-white rounded-2xl border border-slate-200/80 shadow-sm p-5 space-y-4">
+                            <div class="flex justify-between items-center">
+                                <div>
+                                    <h3 class="font-bold text-slate-900 text-base">Visão FIFO Rápida de Lotes</h3>
+                                    <p class="text-xs text-slate-500">Próximos lotes recomendados para consumo prioritário por local</p>
+                                </div>
+                                <button onclick="navigateTo('consulta-fifo')" class="text-xs font-semibold text-emerald-600 hover:text-emerald-700">
+                                    Ver Detalhes <i class="fa-solid fa-arrow-right ml-1"></i>
+                                </button>
+                            </div>
+                            <div class="overflow-x-auto">
+                                <table class="w-full text-left border-collapse text-xs">
+                                    <thead>
+                                        <tr class="bg-slate-50 text-slate-500 uppercase tracking-wider border-y border-slate-200">
+                                            <th class="p-3">Local</th>
+                                            <th class="p-3">Produto</th>
+                                            <th class="p-3">Lote FIFO Recomendado</th>
+                                            <th class="p-3">Data Entrada</th>
+                                            <th class="p-3">Validade</th>
+                                            <th class="p-3">Saldo Disponível</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="dashFifoTable" class="divide-y divide-slate-100">
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+
+                        <div class="bg-white rounded-2xl border border-slate-200/80 shadow-sm p-5 space-y-4">
+                            <div class="flex justify-between items-center">
+                                <h3 class="font-bold text-slate-900 text-base">Últimas Movimentações</h3>
+                                <button onclick="navigateTo('historico')" class="text-xs font-semibold text-emerald-600 hover:text-emerald-700">
+                                    Ver Histórico Completo <i class="fa-solid fa-arrow-right ml-1"></i>
+                                </button>
+                            </div>
+                            <div class="space-y-3" id="dashRecentMovements">
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="space-y-6">
+                        <div class="bg-white rounded-2xl border border-slate-200/80 shadow-sm p-5 space-y-4">
+                            <div class="flex items-center space-x-2 text-amber-600">
+                                <i class="fa-solid fa-bell text-lg"></i>
+                                <h3 class="font-bold text-slate-900 text-base">Alertas de Reposição</h3>
+                            </div>
+                            <p class="text-xs text-slate-500">Produtos cujo saldo total está igual ou abaixo do estoque mínimo definido.</p>
+                            <div class="space-y-3 max-h-[420px] overflow-y-auto" id="dashMinStockList">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <section id="view-consulta-fifo" class="tab-content space-y-6 hidden">
+                <div class="bg-white p-6 rounded-2xl border border-slate-200/80 shadow-sm space-y-4">
+                    <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                        <div>
+                            <h3 class="font-bold text-slate-900 text-lg">Esteira de Lotes & Regra FIFO</h3>
+                            <p class="text-xs text-slate-500">Selecione o local e o produto para analisar a ordenação por data de entrada.</p>
+                        </div>
+                        <div class="flex flex-wrap gap-3">
+                            <div>
+                                <label class="text-xs font-semibold text-slate-500 block mb-1">Local de Estoque</label>
+                                <select id="consultaLocalSelect" onchange="renderConsultaFIFO()" class="bg-slate-50 border border-slate-300 rounded-lg p-2 text-xs font-medium focus:ring-2 focus:ring-emerald-500 focus:outline-none">
+                                </select>
+                            </div>
+                            <div>
+                                <label class="text-xs font-semibold text-slate-500 block mb-1">Produto</label>
+                                <select id="consultaProdutoSelect" onchange="renderConsultaFIFO()" class="bg-slate-50 border border-slate-300 rounded-lg p-2 text-xs font-medium focus:ring-2 focus:ring-emerald-500 focus:outline-none">
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div id="consultaProductSummary" class="bg-slate-50 rounded-xl p-4 border border-slate-200/80 flex flex-wrap justify-between items-center gap-4">
+                    </div>
+
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-left border-collapse text-xs">
+                            <thead>
+                                <tr class="bg-slate-100/80 text-slate-600 uppercase tracking-wider border-y border-slate-200">
+                                    <th class="p-3">Status FIFO</th>
+                                    <th class="p-3">Código do Lote</th>
+                                    <th class="p-3">Data Entrada</th>
+                                    <th class="p-3">Data Validade</th>
+                                    <th class="p-3">Qtd Inicial</th>
+                                    <th class="p-3">Saldo no Local</th>
+                                    <th class="p-3">Ação</th>
+                                </tr>
+                            </thead>
+                            <tbody id="consultaLotsTable" class="divide-y divide-slate-100">
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </section>
+
+            <section id="view-entradas" class="tab-content space-y-6 hidden">
+                <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                    <div class="bg-white p-6 rounded-2xl border border-slate-200/80 shadow-sm space-y-4">
+                        <div class="border-b border-slate-100 pb-3">
+                            <h3 class="font-bold text-slate-900 text-lg">Registrar Nova Entrada de Lote</h3>
+                            <p class="text-xs text-slate-500">Adicione novos lotes no estoque descentralizado.</p>
+                        </div>
+                        <form id="formEntradaLote" onsubmit="handleEntradaSubmit(event)" class="space-y-4">
+                            <div>
+                                <label class="text-xs font-semibold text-slate-700 block mb-1">Produto *</label>
+                                <select id="entradaProduto" required class="w-full bg-slate-50 border border-slate-300 rounded-lg p-2.5 text-xs focus:ring-2 focus:ring-emerald-500 focus:outline-none">
+                                </select>
+                            </div>
+                            <div>
+                                <label class="text-xs font-semibold text-slate-700 block mb-1">Local de Destino *</label>
+                                <select id="entradaLocal" required class="w-full bg-slate-50 border border-slate-300 rounded-lg p-2.5 text-xs focus:ring-2 focus:ring-emerald-500 focus:outline-none">
+                                </select>
+                            </div>
+                            <div>
+                                <label class="text-xs font-semibold text-slate-700 block mb-1">Código do Lote *</label>
+                                <input type="text" id="entradaCodigoLote" required placeholder="Ex: L001" class="w-full bg-slate-50 border border-slate-300 rounded-lg p-2.5 text-xs focus:ring-2 focus:ring-emerald-500 focus:outline-none">
+                            </div>
+                            <div class="grid grid-cols-2 gap-3">
+                                <div>
+                                    <label class="text-xs font-semibold text-slate-700 block mb-1">Data de Entrada *</label>
+                                    <input type="date" id="entradaDataEntrada" required class="w-full bg-slate-50 border border-slate-300 rounded-lg p-2 text-xs focus:ring-2 focus:ring-emerald-500 focus:outline-none">
+                                </div>
+                                <div>
+                                    <label class="text-xs font-semibold text-slate-700 block mb-1">Data Validade *</label>
+                                    <input type="date" id="entradaDataValidade" required class="w-full bg-slate-50 border border-slate-300 rounded-lg p-2 text-xs focus:ring-2 focus:ring-emerald-500 focus:outline-none">
+                                </div>
+                            </div>
+                            <div>
+                                <label class="text-xs font-semibold text-slate-700 block mb-1">Quantidade de Entrada *</label>
+                                <input type="number" id="entradaQuantidade" min="1" step="1" required placeholder="100" class="w-full bg-slate-50 border border-slate-300 rounded-lg p-2.5 text-xs focus:ring-2 focus:ring-emerald-500 focus:outline-none">
+                            </div>
+                            <button type="submit" class="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-semibold py-2.5 rounded-lg text-xs transition-colors shadow-md flex items-center justify-center space-x-2">
+                                <i class="fa-solid fa-plus-circle"></i>
+                                <span>Salvar Entrada de Lote</span>
+                            </button>
+                        </form>
+                    </div>
+
+                    <div class="lg:col-span-2 bg-white p-6 rounded-2xl border border-slate-200/80 shadow-sm space-y-4">
+                        <div class="flex justify-between items-center">
+                            <h3 class="font-bold text-slate-900 text-lg">Lotes Cadastrados no Sistema</h3>
+                            <span class="text-xs bg-slate-100 px-2.5 py-1 rounded-full font-semibold text-slate-600" id="totalLotsBadge">0 lotes</span>
+                        </div>
+                        <div class="overflow-x-auto max-h-[500px]">
+                            <table class="w-full text-left border-collapse text-xs">
+                                <thead class="sticky top-0 bg-slate-100 z-10">
+                                    <tr class="text-slate-600 uppercase tracking-wider border-b border-slate-200">
+                                        <th class="p-3">Lote</th>
+                                        <th class="p-3">Produto</th>
+                                        <th class="p-3">Data Entrada</th>
+                                        <th class="p-3">Validade</th>
+                                        <th class="p-3">Qtd Inicial</th>
+                                        <th class="p-3">Saldos Locais</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="lotsTableBody" class="divide-y divide-slate-100">
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <section id="view-saidas" class="tab-content space-y-6 hidden">
+                <div class="max-w-3xl mx-auto bg-white p-6 rounded-2xl border border-slate-200/80 shadow-sm space-y-6">
+                    <div class="border-b border-slate-100 pb-3">
+                        <h3 class="font-bold text-slate-900 text-lg">Registrar Saída de Estoque</h3>
+                        <p class="text-xs text-slate-500">O sistema sugere automaticamente o lote FIFO mais antigo com saldo disponível.</p>
+                    </div>
+
+                    <form id="formSaida" onsubmit="handleSaidaSubmit(event)" class="space-y-5">
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                            <div>
+                                <label class="text-xs font-semibold text-slate-700 block mb-1">Local de Origem *</label>
+                                <select id="saidaLocal" onchange="updateSaidaLotOptions()" required class="w-full bg-slate-50 border border-slate-300 rounded-lg p-2.5 text-xs focus:ring-2 focus:ring-emerald-500 focus:outline-none">
+                                </select>
+                            </div>
+                            <div>
+                                <label class="text-xs font-semibold text-slate-700 block mb-1">Produto *</label>
+                                <select id="saidaProduto" onchange="updateSaidaLotOptions()" required class="w-full bg-slate-50 border border-slate-300 rounded-lg p-2.5 text-xs focus:ring-2 focus:ring-emerald-500 focus:outline-none">
+                                </select>
+                            </div>
+                        </div>
+
+                        <div id="saidaFifoBanner" class="p-4 rounded-xl border bg-emerald-50 border-emerald-200 text-emerald-900 space-y-2">
+                            <div class="flex items-center space-x-2 font-bold text-xs text-emerald-800">
+                                <i class="fa-solid fa-wand-magic-sparkles text-emerald-600"></i>
+                                <span>LOTE RECOMENDADO FIFO</span>
+                            </div>
+                            <div id="saidaFifoDetails" class="text-xs">Selecione o local e o produto para calcular a recomendação.</div>
+                        </div>
+
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                            <div>
+                                <label class="text-xs font-semibold text-slate-700 block mb-1">Lote para Retirada *</label>
+                                <select id="saidaLote" onchange="checkSaidaFifoViolation()" required class="w-full bg-slate-50 border border-slate-300 rounded-lg p-2.5 text-xs focus:ring-2 focus:ring-emerald-500 focus:outline-none">
+                                </select>
+                            </div>
+                            <div>
+                                <label class="text-xs font-semibold text-slate-700 block mb-1">Quantidade *</label>
+                                <input type="number" id="saidaQuantidade" min="1" step="1" required placeholder="Digite a quantidade" class="w-full bg-slate-50 border border-slate-300 rounded-lg p-2.5 text-xs focus:ring-2 focus:ring-emerald-500 focus:outline-none">
+                            </div>
+                        </div>
+
+                        <div id="saidaJustificativaBox" class="p-4 rounded-xl border border-amber-300 bg-amber-50 space-y-2 hidden">
+                            <div class="flex items-center space-x-2 text-amber-800 font-bold text-xs">
+                                <i class="fa-solid fa-triangle-exclamation text-amber-600"></i>
+                                <span>ALERTA DE DESVIO FIFO DETECTADO</span>
+                            </div>
+                            <p class="text-xs text-amber-900">
+                                Você está selecionando um lote mais recente enquanto existe saldo disponível em lote mais antigo neste local. 
+                                É **obrigatório** fornecer uma justificativa formal para auditoria.
+                            </p>
+                            <div>
+                                <label class="text-xs font-semibold text-amber-900 block mb-1">Justificativa do Desvio FIFO *</label>
+                                <textarea id="saidaJustificativa" rows="2" placeholder="Ex: Caixa do lote antigo danificada..." class="w-full bg-white border border-amber-300 rounded-lg p-2 text-xs focus:ring-2 focus:ring-amber-500 focus:outline-none"></textarea>
+                            </div>
+                        </div>
+
+                        <button type="submit" class="w-full bg-rose-600 hover:bg-rose-700 text-white font-semibold py-2.5 rounded-lg text-xs transition-colors shadow-md flex items-center justify-center space-x-2">
+                            <i class="fa-solid fa-circle-minus"></i>
+                            <span>Confirmar Baixa de Saída</span>
+                        </button>
+                    </form>
+                </div>
+            </section>
+
+            <section id="view-transferencias" class="tab-content space-y-6 hidden">
+                <div class="max-w-3xl mx-auto bg-white p-6 rounded-2xl border border-slate-200/80 shadow-sm space-y-6">
+                    <div class="border-b border-slate-100 pb-3">
+                        <h3 class="font-bold text-slate-900 text-lg">Transferência Descentralizada de Estoque</h3>
+                        <p class="text-xs text-slate-500">Mova quantidades entre locais.</p>
+                    </div>
+
+                    <form id="formTransferencia" onsubmit="handleTransferenciaSubmit(event)" class="space-y-5">
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                            <div>
+                                <label class="text-xs font-semibold text-slate-700 block mb-1">Local Origem *</label>
+                                <select id="transfLocalOrigem" onchange="updateTransfLotOptions()" required class="w-full bg-slate-50 border border-slate-300 rounded-lg p-2.5 text-xs focus:ring-2 focus:ring-indigo-500 focus:outline-none">
+                                </select>
+                            </div>
+                            <div>
+                                <label class="text-xs font-semibold text-slate-700 block mb-1">Local Destino *</label>
+                                <select id="transfLocalDestino" required class="w-full bg-slate-50 border border-slate-300 rounded-lg p-2.5 text-xs focus:ring-2 focus:ring-indigo-500 focus:outline-none">
+                                </select>
+                            </div>
+                        </div>
+
+                        <div>
+                            <label class="text-xs font-semibold text-slate-700 block mb-1">Produto *</label>
+                            <select id="transfProduto" onchange="updateTransfLotOptions()" required class="w-full bg-slate-50 border border-slate-300 rounded-lg p-2.5 text-xs focus:ring-2 focus:ring-indigo-500 focus:outline-none">
+                            </select>
+                        </div>
+
+                        <div id="transfFifoBanner" class="p-4 rounded-xl border bg-indigo-50 border-indigo-200 text-indigo-900 space-y-1 text-xs">
+                            <span class="font-bold">Lote Recomendado na Origem:</span> <span id="transfFifoDetails">Selecione produto e origem.</span>
+                        </div>
+
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                            <div>
+                                <label class="text-xs font-semibold text-slate-700 block mb-1">Lote Origem *</label>
+                                <select id="transfLote" onchange="checkTransfFifoViolation()" required class="w-full bg-slate-50 border border-slate-300 rounded-lg p-2.5 text-xs focus:ring-2 focus:ring-indigo-500 focus:outline-none">
+                                </select>
+                            </div>
+                            <div>
+                                <label class="text-xs font-semibold text-slate-700 block mb-1">Quantidade a Transferir *</label>
+                                <input type="number" id="transfQuantidade" min="1" step="1" required placeholder="Digite a quantidade" class="w-full bg-slate-50 border border-slate-300 rounded-lg p-2.5 text-xs focus:ring-2 focus:ring-indigo-500 focus:outline-none">
+                            </div>
+                        </div>
+
+                        <div id="transfJustificativaBox" class="p-4 rounded-xl border border-amber-300 bg-amber-50 space-y-2 hidden">
+                            <div class="flex items-center space-x-2 text-amber-800 font-bold text-xs">
+                                <i class="fa-solid fa-triangle-exclamation text-amber-600"></i>
+                                <span>ALERTA DE DESVIO FIFO NA TRANSFERÊNCIA</span>
+                            </div>
+                            <div>
+                                <label class="text-xs font-semibold text-amber-900 block mb-1">Justificativa do Desvio FIFO *</label>
+                                <textarea id="transfJustificativa" rows="2" placeholder="Descreva o motivo da transferência de lote não prioritário..." class="w-full bg-white border border-amber-300 rounded-lg p-2 text-xs focus:ring-2 focus:ring-amber-500 focus:outline-none"></textarea>
+                            </div>
+                        </div>
+
+                        <button type="submit" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-2.5 rounded-lg text-xs transition-colors shadow-md flex items-center justify-center space-x-2">
+                            <i class="fa-solid fa-arrow-right-arrow-left"></i>
+                            <span>Executar Transferência</span>
+                        </button>
+                    </form>
+                </div>
+            </section>
+
+            <section id="view-ajustes" class="tab-content space-y-6 hidden">
+                <div class="max-w-2xl mx-auto bg-white p-6 rounded-2xl border border-slate-200/80 shadow-sm space-y-6">
+                    <div class="border-b border-slate-100 pb-3">
+                        <h3 class="font-bold text-slate-900 text-lg">Ajuste de Saldo de Estoque</h3>
+                        <p class="text-xs text-slate-500">Ajustes diretos de inventário, perdas, avarias ou correções de contagem.</p>
+                    </div>
+
+                    <form id="formAjuste" onsubmit="handleAjusteSubmit(event)" class="space-y-4">
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                            <div>
+                                <label class="text-xs font-semibold text-slate-700 block mb-1">Local de Estoque *</label>
+                                <select id="ajusteLocal" onchange="updateAjusteLotOptions()" required class="w-full bg-slate-50 border border-slate-300 rounded-lg p-2.5 text-xs focus:ring-2 focus:ring-amber-500 focus:outline-none">
+                                </select>
+                            </div>
+                            <div>
+                                <label class="text-xs font-semibold text-slate-700 block mb-1">Produto *</label>
+                                <select id="ajusteProduto" onchange="updateAjusteLotOptions()" required class="w-full bg-slate-50 border border-slate-300 rounded-lg p-2.5 text-xs focus:ring-2 focus:ring-amber-500 focus:outline-none">
+                                </select>
+                            </div>
+                        </div>
+
+                        <div>
+                            <label class="text-xs font-semibold text-slate-700 block mb-1">Lote *</label>
+                            <select id="ajusteLote" onchange="displayCurrentBalanceForAjuste()" required class="w-full bg-slate-50 border border-slate-300 rounded-lg p-2.5 text-xs focus:ring-2 focus:ring-amber-500 focus:outline-none">
+                            </select>
+                        </div>
+
+                        <div class="p-3 bg-slate-50 rounded-lg border border-slate-200 text-xs flex justify-between items-center">
+                            <span class="text-slate-600 font-medium">Saldo Atual Registrado:</span>
+                            <span id="ajusteSaldoAtualText" class="font-bold text-slate-900">0 un</span>
+                        </div>
+
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                            <div>
+                                <label class="text-xs font-semibold text-slate-700 block mb-1">Tipo de Ajuste *</label>
+                                <select id="ajusteTipoOperacao" class="w-full bg-slate-50 border border-slate-300 rounded-lg p-2.5 text-xs focus:ring-2 focus:ring-amber-500 focus:outline-none">
+                                    <option value="SET">Definir Novo Saldo Exato</option>
+                                    <option value="ADD">Adicionar Quantidade (+)</option>
+                                    <option value="SUB">Subtrair Quantidade (-)</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label class="text-xs font-semibold text-slate-700 block mb-1">Valor Quantidade *</label>
+                                <input type="number" id="ajusteValor" min="0" step="1" required placeholder="Digite o valor" class="w-full bg-slate-50 border border-slate-300 rounded-lg p-2.5 text-xs focus:ring-2 focus:ring-amber-500 focus:outline-none">
+                            </div>
+                        </div>
+
+                        <div>
+                            <label class="text-xs font-semibold text-slate-700 block mb-1">Justificativa de Ajuste (Obrigatória) *</label>
+                            <textarea id="ajusteJustificativa" required rows="3" placeholder="Motivo: Avaria na contagem, amostra grátis, recontagem física..." class="w-full bg-slate-50 border border-slate-300 rounded-lg p-2.5 text-xs focus:ring-2 focus:ring-amber-500 focus:outline-none"></textarea>
+                        </div>
+
+                        <button type="submit" class="w-full bg-amber-600 hover:bg-amber-700 text-white font-semibold py-2.5 rounded-lg text-xs transition-colors shadow-md flex items-center justify-center space-x-2">
+                            <i class="fa-solid fa-sliders"></i>
+                            <span>Salvar Ajuste de Saldo</span>
+                        </button>
+                    </form>
+                </div>
+            </section>
+
+            <section id="view-historico" class="tab-content space-y-6 hidden">
+                <div class="bg-white p-6 rounded-2xl border border-slate-200/80 shadow-sm space-y-4">
+                    <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                        <div>
+                            <h3 class="font-bold text-slate-900 text-lg">Histórico de Auditoria e Movimentações</h3>
+                            <p class="text-xs text-slate-500">Rastreabilidade completa com UUID v4, flag de desvio FIFO e justificativas.</p>
+                        </div>
+                        <div class="flex flex-wrap gap-2">
+                            <button onclick="exportHistoryCSV()" class="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold rounded-lg border border-slate-300 transition-colors flex items-center space-x-1">
+                                <i class="fa-solid fa-download"></i>
+                                <span>Exportar CSV</span>
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3 bg-slate-50 p-3 rounded-xl border border-slate-200">
+                        <div>
+                            <label class="text-[11px] font-semibold text-slate-500 block mb-1">Filtrar por Tipo</label>
+                            <select id="histFilterTipo" onchange="renderHistoryTable()" class="w-full bg-white border border-slate-300 rounded-lg p-1.5 text-xs">
+                                <option value="">Todos os Tipos</option>
+                                <option value="ENTRADA">ENTRADA</option>
+                                <option value="SAIDA">SAÍDA</option>
+                                <option value="TRANSFERENCIA">TRANSFERÊNCIA</option>
+                                <option value="AJUSTE">AJUSTE</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="text-[11px] font-semibold text-slate-500 block mb-1">Filtrar por Produto</label>
+                            <select id="histFilterProduto" onchange="renderHistoryTable()" class="w-full bg-white border border-slate-300 rounded-lg p-1.5 text-xs">
+                            </select>
+                        </div>
+                        <div>
+                            <label class="text-[11px] font-semibold text-slate-500 block mb-1">Status FIFO</label>
+                            <select id="histFilterFifo" onchange="renderHistoryTable()" class="w-full bg-white border border-slate-300 rounded-lg p-1.5 text-xs">
+                                <option value="">Todos</option>
+                                <option value="IGNORED">Apenas Desvios FIFO</option>
+                                <option value="NORMAL">Apenas Respeitados</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="text-[11px] font-semibold text-slate-500 block mb-1">Busca Geral</label>
+                            <input type="text" id="histFilterSearch" oninput="renderHistoryTable()" placeholder="UUID, lote ou usuário..." class="w-full bg-white border border-slate-300 rounded-lg p-1.5 text-xs">
+                        </div>
+                    </div>
+
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-left border-collapse text-xs">
+                            <thead>
+                                <tr class="bg-slate-100/80 text-slate-600 uppercase tracking-wider border-y border-slate-200">
+                                    <th class="p-3">Data/Hora</th>
+                                    <th class="p-3">Tipo</th>
+                                    <th class="p-3">Produto / Lote</th>
+                                    <th class="p-3">Origem &rarr; Destino</th>
+                                    <th class="p-3">Qtd</th>
+                                    <th class="p-3">Usuário</th>
+                                    <th class="p-3">FIFO Status</th>
+                                    <th class="p-3">UUID & Justificativa</th>
+                                </tr>
+                            </thead>
+                            <tbody id="historyTableBody" class="divide-y divide-slate-100">
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </section>
+
+            <section id="view-cadastros-produtos" class="tab-content space-y-6 hidden">
+                <div class="bg-white p-6 rounded-2xl border border-slate-200/80 shadow-sm space-y-4">
+                    <div class="flex justify-between items-center">
+                        <div>
+                            <h3 class="font-bold text-slate-900 text-lg">Cadastro de Produtos</h3>
+                            <p class="text-xs text-slate-500">Gerenciamento de catálogo e parâmetro de estoque mínimo.</p>
+                        </div>
+                        <button onclick="openProductModal()" class="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold px-3 py-2 rounded-lg text-xs transition-colors flex items-center space-x-1">
+                            <i class="fa-solid fa-plus"></i>
+                            <span>Novo Produto</span>
+                        </button>
+                    </div>
+
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-left border-collapse text-xs">
+                            <thead>
+                                <tr class="bg-slate-100 text-slate-600 uppercase tracking-wider border-y border-slate-200">
+                                    <th class="p-3">SKU</th>
+                                    <th class="p-3">Nome</th>
+                                    <th class="p-3">Unidade</th>
+                                    <th class="p-3">Estoque Mínimo</th>
+                                    <th class="p-3">Status</th>
+                                    <th class="p-3 text-right">Ações</th>
+                                </tr>
+                            </thead>
+                            <tbody id="crudProductsTable" class="divide-y divide-slate-100">
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </section>
+
+            <section id="view-cadastros-locais" class="tab-content space-y-6 hidden">
+                <div class="bg-white p-6 rounded-2xl border border-slate-200/80 shadow-sm space-y-4">
+                    <div class="flex justify-between items-center">
+                        <div>
+                            <h3 class="font-bold text-slate-900 text-lg">Locais de Estoque Descentralizado</h3>
+                            <p class="text-xs text-slate-500">Almoxarifados, cozinhas, lojas e depósitos.</p>
+                        </div>
+                        <button onclick="openLocationModal()" class="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold px-3 py-2 rounded-lg text-xs transition-colors flex items-center space-x-1">
+                            <i class="fa-solid fa-plus"></i>
+                            <span>Novo Local</span>
+                        </button>
+                    </div>
+
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-left border-collapse text-xs">
+                            <thead>
+                                <tr class="bg-slate-100 text-slate-600 uppercase tracking-wider border-y border-slate-200">
+                                    <th class="p-3">ID</th>
+                                    <th class="p-3">Nome do Local</th>
+                                    <th class="p-3">Descrição</th>
+                                    <th class="p-3">Status</th>
+                                    <th class="p-3 text-right">Ações</th>
+                                </tr>
+                            </thead>
+                            <tbody id="crudLocationsTable" class="divide-y divide-slate-100">
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </section>
+
+            <section id="view-cadastros-usuarios" class="tab-content space-y-6 hidden">
+                <div class="bg-white p-6 rounded-2xl border border-slate-200/80 shadow-sm space-y-4">
+                    <div class="flex justify-between items-center">
+                        <div>
+                            <h3 class="font-bold text-slate-900 text-lg">Usuários do Sistema</h3>
+                            <p class="text-xs text-slate-500">Administradores, Gestores e Operadores.</p>
+                        </div>
+                        <button onclick="openUserModal()" class="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold px-3 py-2 rounded-lg text-xs transition-colors flex items-center space-x-1">
+                            <i class="fa-solid fa-plus"></i>
+                            <span>Novo Usuário</span>
+                        </button>
+                    </div>
+
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-left border-collapse text-xs">
+                            <thead>
+                                <tr class="bg-slate-100 text-slate-600 uppercase tracking-wider border-y border-slate-200">
+                                    <th class="p-3">Nome</th>
+                                    <th class="p-3">Email</th>
+                                    <th class="p-3">Perfil</th>
+                                    <th class="p-3">Status</th>
+                                    <th class="p-3 text-right">Ações</th>
+                                </tr>
+                            </thead>
+                            <tbody id="crudUsersTable" class="divide-y divide-slate-100">
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </section>
+
+        </div>
+    </main>
+
+    <!-- Generic CRUD Modal -->
+    <div id="crudModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
+        <div class="bg-white rounded-2xl max-w-md w-full p-6 space-y-4 shadow-2xl border border-slate-100 animate-in fade-in zoom-in duration-200">
+            <div class="flex justify-between items-center border-b border-slate-100 pb-3">
+                <h3 id="modalTitle" class="font-bold text-slate-900 text-base">Título do Modal</h3>
+                <button onclick="closeCrudModal()" class="text-slate-400 hover:text-slate-600">
+                    <i class="fa-solid fa-xmark text-lg"></i>
+                </button>
+            </div>
+            <div id="modalBody" class="space-y-3">
+            </div>
+            <div class="flex justify-end space-x-2 border-t border-slate-100 pt-3">
+                <button onclick="closeCrudModal()" class="px-3 py-2 text-xs font-semibold text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-lg">Cancelar</button>
+                <button id="modalSaveBtn" onclick="saveCrudModal()" class="px-4 py-2 text-xs font-semibold text-white bg-emerald-600 hover:bg-emerald-700 rounded-lg shadow-sm">Salvar</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast Container -->
+    <div id="toastContainer" class="fixed bottom-4 right-4 z-50 space-y-2 max-w-sm pointer-events-none"></div>
+
+    <script>
+        /* 
+         * GLOBAL APP STATE - EMPTY SYSTEM (ZERADO)
+         */
+        const STORAGE_KEYS = {
+            PRODUCTS: 'fifo_products',
+            LOCATIONS: 'fifo_locations',
+            LOTS: 'fifo_lots',
+            BALANCES: 'fifo_balances',
+            USERS: 'fifo_users',
+            MOVEMENTS: 'fifo_movements',
+            OFFLINE_QUEUE: 'fifo_offline_queue',
+            CURRENT_USER_ID: 'fifo_current_user_id',
+            ONLINE_STATUS: 'fifo_online_status'
+        };
+
+        // System state initialized completely empty
+        const EMPTY_DATA = {
+            products: [],
+            locations: [],
+            lots: [],
+            balances: {},
+            users: [
+                { id: '1', name: 'Administrador', email: 'admin@estoque.com', role: 'ADMIN', status: 'Ativo' }
+            ],
+            movements: []
+        };
+
+        function generateUUID() {
+            return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+                const r = Math.random() * 16 | 0, v = c === 'x' ? r : (r & 0x3 | 0x8);
+                return v.toString(16);
+            });
+        }
+
+        function getStorage(key, fallback) {
+            const data = localStorage.getItem(key);
+            return data ? JSON.parse(data) : fallback;
+        }
+        function setStorage(key, value) {
+            localStorage.setItem(key, JSON.stringify(value));
+        }
+
+        function initSystemData() {
+            // Check if user forces empty mode or first time initialization
+            if (!localStorage.getItem(STORAGE_KEYS.PRODUCTS) || localStorage.getItem('fifo_is_empty_mode_v1') !== 'true') {
+                setStorage(STORAGE_KEYS.PRODUCTS, EMPTY_DATA.products);
+                setStorage(STORAGE_KEYS.LOCATIONS, EMPTY_DATA.locations);
+                setStorage(STORAGE_KEYS.LOTS, EMPTY_DATA.lots);
+                setStorage(STORAGE_KEYS.BALANCES, EMPTY_DATA.balances);
+                setStorage(STORAGE_KEYS.USERS, EMPTY_DATA.users);
+                setStorage(STORAGE_KEYS.MOVEMENTS, EMPTY_DATA.movements);
+                setStorage(STORAGE_KEYS.OFFLINE_QUEUE, []);
+                setStorage(STORAGE_KEYS.CURRENT_USER_ID, '1');
+                setStorage(STORAGE_KEYS.ONLINE_STATUS, true);
+                setStorage('fifo_is_empty_mode_v1', 'true');
+            }
+        }
+
+        function resetDataToEmpty() {
+            if (confirm('Tem certeza que deseja zerar o sistema? Todos os registros serão permanentemente apagados.')) {
+                localStorage.clear();
+                initSystemData();
+                showToast('Sistema zerado com sucesso! Nenhum dado cadastrado.', 'success');
+                window.location.reload();
+            }
+        }
+
+        function getProducts() { return getStorage(STORAGE_KEYS.PRODUCTS, []); }
+        function getLocations() { return getStorage(STORAGE_KEYS.LOCATIONS, []); }
+        function getLots() { return getStorage(STORAGE_KEYS.LOTS, []); }
+        function getBalances() { return getStorage(STORAGE_KEYS.BALANCES, {}); }
+        function getUsers() { return getStorage(STORAGE_KEYS.USERS, []); }
+        function getMovements() { return getStorage(STORAGE_KEYS.MOVEMENTS, []); }
+        function getOfflineQueue() { return getStorage(STORAGE_KEYS.OFFLINE_QUEUE, []); }
+        function getCurrentUserId() { return getStorage(STORAGE_KEYS.CURRENT_USER_ID, '1'); }
+        function isOnline() { return getStorage(STORAGE_KEYS.ONLINE_STATUS, true); }
+
+        function getCurrentUser() {
+            const users = getUsers();
+            const id = getCurrentUserId();
+            return users.find(u => u.id === id) || users[0] || { id: '1', name: 'Administrador', email: 'admin@estoque.com', role: 'ADMIN' };
+        }
+
+        function getLotBalanceInLocation(lotId, locationId) {
+            const key = `${lotId}_${locationId}`;
+            const balances = getBalances();
+            return balances[key] || 0;
+        }
+
+        function setLotBalanceInLocation(lotId, locationId, qty) {
+            const key = `${lotId}_${locationId}`;
+            const balances = getBalances();
+            balances[key] = Math.max(0, parseInt(qty) || 0);
+            setStorage(STORAGE_KEYS.BALANCES, balances);
+        }
+
+        function getFifoOrderedLotsForProductAndLocation(productId, locationId) {
+            const lots = getLots().filter(l => l.product_id === String(productId));
+            
+            const validLots = lots.map(lot => {
+                const bal = getLotBalanceInLocation(lot.id, locationId);
+                return { ...lot, current_balance: bal };
+            }).filter(l => l.current_balance > 0);
+
+            validLots.sort((a, b) => {
+                if (a.entry_date !== b.entry_date) {
+                    return a.entry_date.localeCompare(b.entry_date);
+                }
+                return parseInt(a.id) - parseInt(b.id);
+            });
+
+            return validLots;
+        }
+
+        function navigateTo(viewId) {
+            document.querySelectorAll('.tab-content').forEach(el => el.classList.add('hidden'));
+            const target = document.getElementById(`view-${viewId}`);
+            if (target) {
+                target.classList.remove('hidden');
+            }
+
+            document.querySelectorAll('.nav-item').forEach(el => {
+                if (el.getAttribute('href') === `#${viewId}`) {
+                    el.classList.add('bg-emerald-600', 'text-white');
+                    el.classList.remove('text-slate-400', 'hover:bg-slate-800/80');
+                } else {
+                    el.classList.remove('bg-emerald-600', 'text-white');
+                    el.classList.add('text-slate-400', 'hover:bg-slate-800/80');
+                }
+            });
+
+            const titles = {
+                'dashboard': 'Dashboard Geral',
+                'consulta-fifo': 'Consulta de Estoque FIFO',
+                'entradas': 'Entrada de Lotes',
+                'saidas': 'Saída de Estoque',
+                'transferencias': 'Transferência entre Locais',
+                'ajustes': 'Ajustes de Saldo',
+                'historico': 'Histórico & Auditoria FIFO',
+                'cadastros-produtos': 'Cadastro de Produtos',
+                'cadastros-locais': 'Cadastro de Locais',
+                'cadastros-usuarios': 'Cadastro de Usuários'
+            };
+            document.getElementById('pageTitle').innerText = titles[viewId] || 'Estoque FIFO';
+
+            if (viewId === 'dashboard') renderDashboard();
+            if (viewId === 'consulta-fifo') renderConsultaFIFO();
+            if (viewId === 'entradas') renderEntradasView();
+            if (viewId === 'saidas') renderSaidasView();
+            if (viewId === 'transferencias') renderTransferenciasView();
+            if (viewId === 'ajustes') renderAjustesView();
+            if (viewId === 'historico') renderHistoryTable();
+            if (viewId === 'cadastros-produtos') renderCrudProducts();
+            if (viewId === 'cadastros-locais') renderCrudLocations();
+            if (viewId === 'cadastros-usuarios') renderCrudUsers();
+
+            document.getElementById('sidebar').classList.add('-translate-x-full');
+        }
+
+        function setOnlineMode(status) {
+            setStorage(STORAGE_KEYS.ONLINE_STATUS, status);
+            updateOnlineUI();
+            if (status) {
+                showToast('Modo Online ativado.', 'info');
+            } else {
+                showToast('Modo Offline ativado (PWA). Movimentações serão enfileiradas.', 'warning');
+            }
+        }
+
+        function updateOnlineUI() {
+            const online = isOnline();
+            const btnOnline = document.getElementById('btnOnlineToggle');
+            const btnOffline = document.getElementById('btnOfflineToggle');
+            const pwaStatus = document.getElementById('pwaStatusBadge');
+
+            if (online) {
+                btnOnline.className = "px-2.5 py-1 text-xs font-semibold rounded-md transition-all bg-white text-emerald-700 shadow-sm";
+                btnOffline.className = "px-2.5 py-1 text-xs font-semibold rounded-md transition-all text-slate-600 hover:text-slate-900";
+                pwaStatus.className = "inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold bg-emerald-500/20 text-emerald-400";
+                pwaStatus.innerHTML = '<span class="w-1.5 h-1.5 rounded-full bg-emerald-400 mr-1.5 animate-pulse"></span> Online';
+            } else {
+                btnOffline.className = "px-2.5 py-1 text-xs font-semibold rounded-md transition-all bg-amber-500 text-white shadow-sm";
+                btnOnline.className = "px-2.5 py-1 text-xs font-semibold rounded-md transition-all text-slate-600 hover:text-slate-900";
+                pwaStatus.className = "inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold bg-amber-500/20 text-amber-400";
+                pwaStatus.innerHTML = '<span class="w-1.5 h-1.5 rounded-full bg-amber-400 mr-1.5 animate-pulse"></span> Offline';
+            }
+            updateSyncQueueBadge();
+        }
+
+        function updateSyncQueueBadge() {
+            const queue = getOfflineQueue();
+            const badge = document.getElementById('syncQueueBadge');
+            badge.innerText = queue.length;
+            const btnSync = document.getElementById('btnSyncData');
+            if (queue.length > 0) {
+                btnSync.classList.remove('opacity-50');
+                btnSync.classList.add('animate-bounce');
+            } else {
+                btnSync.classList.add('opacity-50');
+                btnSync.classList.remove('animate-bounce');
+            }
+        }
+
+        function syncOfflineQueue() {
+            const queue = getOfflineQueue();
+            if (queue.length === 0) {
+                showToast('Nenhuma movimentação pendente para sincronizar.', 'info');
+                return;
+            }
+
+            if (!isOnline()) {
+                showToast('Ative o modo ONLINE para realizar a sincronização com a nuvem!', 'warning');
+                return;
+            }
+
+            const movements = getMovements();
+            queue.forEach(item => {
+                movements.unshift(item);
+            });
+            setStorage(STORAGE_KEYS.MOVEMENTS, movements);
+            setStorage(STORAGE_KEYS.OFFLINE_QUEUE, []);
+
+            updateSyncQueueBadge();
+            showToast(`${queue.length} movimentação(ões) offline sincronizada(s) com sucesso!`, 'success');
+            renderDashboard();
+        }
+
+        function renderDashboard() {
+            const products = getProducts().filter(p => p.status === 'Ativo');
+            const locations = getLocations().filter(l => l.status === 'Ativo');
+            const lots = getLots();
+            const balances = getBalances();
+            const movements = getMovements();
+
+            document.getElementById('dashTotalProducts').innerText = products.length;
+
+            let totalBalance = 0;
+            Object.values(balances).forEach(val => totalBalance += (parseInt(val) || 0));
+            document.getElementById('dashTotalBalance').innerText = totalBalance.toLocaleString('pt-BR');
+
+            document.getElementById('dashTotalMovements').innerText = movements.length;
+
+            const fifoRelevantMovements = movements.filter(m => m.type === 'SAIDA' || m.type === 'TRANSFERENCIA');
+            if (fifoRelevantMovements.length > 0) {
+                const respectedCount = fifoRelevantMovements.filter(m => !m.fifo_ignored).length;
+                const complianceRate = Math.round((respectedCount / fifoRelevantMovements.length) * 100);
+                document.getElementById('dashFifoCompliance').innerText = `${complianceRate}%`;
+            } else {
+                document.getElementById('dashFifoCompliance').innerText = '100%';
+            }
+
+            let alertCount = 0;
+            const minStockListEl = document.getElementById('dashMinStockList');
+            minStockListEl.innerHTML = '';
+
+            products.forEach(p => {
+                let productTotal = 0;
+                lots.filter(l => l.product_id === p.id).forEach(l => {
+                    locations.forEach(loc => {
+                        productTotal += getLotBalanceInLocation(l.id, loc.id);
+                    });
+                });
+
+                if (productTotal <= parseInt(p.min_stock)) {
+                    alertCount++;
+                    const card = document.createElement('div');
+                    card.className = "p-3 rounded-xl bg-amber-50 border border-amber-200 flex justify-between items-center";
+                    card.innerHTML = `
+                        <div>
+                            <div class="font-bold text-slate-900 text-xs">${p.name} (${p.sku})</div>
+                            <div class="text-[11px] text-amber-800">Mínimo: ${p.min_stock} ${p.unit}</div>
+                        </div>
+                        <div class="text-right">
+                            <span class="px-2 py-1 bg-amber-200 text-amber-900 font-bold text-xs rounded-md">${productTotal} ${p.unit}</span>
+                        </div>
+                    `;
+                    minStockListEl.appendChild(card);
+                }
+            });
+
+            document.getElementById('dashAlertCount').innerText = alertCount;
+            if (alertCount === 0) {
+                minStockListEl.innerHTML = `
+                    <div class="p-4 text-center text-xs text-slate-400 bg-slate-50 rounded-xl border border-dashed border-slate-200">
+                        <i class="fa-solid fa-circle-check text-emerald-500 text-base mb-1 block"></i>
+                        ${products.length === 0 ? 'Nenhum produto cadastrado no sistema.' : 'Todos os produtos estão acima do estoque mínimo!'}
+                    </div>
+                `;
+            }
+
+            const dashFifoTable = document.getElementById('dashFifoTable');
+            dashFifoTable.innerHTML = '';
+
+            let fifoRowsCount = 0;
+            locations.forEach(loc => {
+                products.forEach(prod => {
+                    const fifoLots = getFifoOrderedLotsForProductAndLocation(prod.id, loc.id);
+                    if (fifoLots.length > 0 && fifoRowsCount < 5) {
+                        fifoRowsCount++;
+                        const recommended = fifoLots[0];
+                        const tr = document.createElement('tr');
+                        tr.className = "hover:bg-slate-50/80 transition-colors";
+                        tr.innerHTML = `
+                            <td class="p-3 font-medium text-slate-800">${loc.name}</td>
+                            <td class="p-3 text-slate-700">${prod.name}</td>
+                            <td class="p-3">
+                                <span class="px-2 py-1 rounded bg-emerald-100 text-emerald-800 font-bold border border-emerald-300">
+                                    <i class="fa-solid fa-bolt mr-1"></i> ${recommended.lot_code}
+                                </span>
+                            </td>
+                            <td class="p-3 text-slate-600">${formatDate(recommended.entry_date)}</td>
+                            <td class="p-3 text-slate-600">${formatDate(recommended.exp_date)}</td>
+                            <td class="p-3 font-bold text-slate-900">${recommended.current_balance} ${prod.unit}</td>
+                        `;
+                        dashFifoTable.appendChild(tr);
+                    }
+                });
+            });
+
+            if (fifoRowsCount === 0) {
+                dashFifoTable.innerHTML = `
+                    <tr><td colspan="6" class="p-4 text-center text-xs text-slate-400">Nenhum lote com saldo ativo cadastrado. Cadastre produtos e entradas para iniciar.</td></tr>
+                `;
+            }
+
+            const recentContainer = document.getElementById('dashRecentMovements');
+            recentContainer.innerHTML = '';
+            const recentMovements = movements.slice(0, 4);
+
+            if (recentMovements.length === 0) {
+                recentContainer.innerHTML = `<div class="text-xs text-slate-400 text-center py-4 bg-slate-50 rounded-xl border border-dashed border-slate-200">Nenhuma movimentação registrada.</div>`;
+            } else {
+                recentMovements.forEach(m => {
+                    const prod = products.find(p => p.id === m.product_id) || { name: 'Produto' };
+                    const lot = lots.find(l => l.id === m.lot_id) || { lot_code: 'Lote' };
+                    
+                    let badgeClass = "bg-slate-100 text-slate-700";
+                    if (m.type === 'ENTRADA') badgeClass = "bg-emerald-100 text-emerald-800";
+                    if (m.type === 'SAIDA') badgeClass = "bg-rose-100 text-rose-800";
+                    if (m.type === 'TRANSFERENCIA') badgeClass = "bg-indigo-100 text-indigo-800";
+                    if (m.type === 'AJUSTE') badgeClass = "bg-amber-100 text-amber-800";
+
+                    const item = document.createElement('div');
+                    item.className = "flex items-center justify-between p-3 rounded-xl bg-slate-50 border border-slate-200/80 text-xs";
+                    item.innerHTML = `
+                        <div class="flex items-center space-x-3">
+                            <span class="px-2 py-1 rounded font-bold ${badgeClass}">${m.type}</span>
+                            <div>
+                                <div class="font-bold text-slate-900">${prod.name} (Lote ${lot.lot_code})</div>
+                                <div class="text-[11px] text-slate-500">${m.timestamp}</div>
+                            </div>
+                        </div>
+                        <div class="text-right">
+                            <div class="font-bold text-slate-900">${m.quantity} un</div>
+                            ${m.fifo_ignored ? '<span class="text-[10px] bg-rose-100 text-rose-800 font-semibold px-1.5 py-0.5 rounded">Desvio FIFO</span>' : ''}
+                        </div>
+                    `;
+                    recentContainer.appendChild(item);
+                });
+            }
+        }
+
+        function renderConsultaFIFO() {
+            const locations = getLocations().filter(l => l.status === 'Ativo');
+            const products = getProducts().filter(p => p.status === 'Ativo');
+
+            const locSelect = document.getElementById('consultaLocalSelect');
+            const prodSelect = document.getElementById('consultaProdutoSelect');
+
+            locSelect.innerHTML = locations.length > 0 
+                ? locations.map(l => `<option value="${l.id}">${l.name}</option>`).join('')
+                : '<option value="">(Nenhum local cadastrado)</option>';
+
+            prodSelect.innerHTML = products.length > 0 
+                ? products.map(p => `<option value="${p.id}">${p.name} (${p.sku})</option>`).join('')
+                : '<option value="">(Nenhum produto cadastrado)</option>';
+
+            const selectedLocId = locSelect.value;
+            const selectedProdId = prodSelect.value;
+
+            const selectedLoc = locations.find(l => l.id === selectedLocId);
+            const selectedProd = products.find(p => p.id === selectedProdId);
+
+            const summaryBox = document.getElementById('consultaProductSummary');
+            let totalLocalStock = 0;
+            const sortedLots = (selectedProdId && selectedLocId) ? getFifoOrderedLotsForProductAndLocation(selectedProdId, selectedLocId) : [];
+            sortedLots.forEach(l => totalLocalStock += l.current_balance);
+
+            summaryBox.innerHTML = `
+                <div>
+                    <h4 class="font-bold text-slate-900 text-sm">${selectedProd ? selectedProd.name : 'Selecione um Produto'} ${selectedLoc ? 'em ' + selectedLoc.name : ''}</h4>
+                    <p class="text-xs text-slate-500">SKU: ${selectedProd ? selectedProd.sku : '-'} | Unidade: ${selectedProd ? selectedProd.unit : '-'} | Mínimo Geral: ${selectedProd ? selectedProd.min_stock : '-'}</p>
+                </div>
+                <div class="flex items-center space-x-3">
+                    <span class="text-xs text-slate-500">Saldo no Local:</span>
+                    <span class="text-lg font-bold text-slate-900 bg-white px-3 py-1 rounded-lg border border-slate-200">${totalLocalStock} ${selectedProd ? selectedProd.unit : ''}</span>
+                </div>
+            `;
+
+            const allProductLots = selectedProdId ? getLots().filter(l => l.product_id === selectedProdId) : [];
+            allProductLots.sort((a, b) => a.entry_date.localeCompare(b.entry_date));
+
+            const tableBody = document.getElementById('consultaLotsTable');
+            tableBody.innerHTML = '';
+
+            if (allProductLots.length === 0) {
+                tableBody.innerHTML = `<tr><td colspan="7" class="p-4 text-center text-xs text-slate-400">Nenhum lote registrado para este produto/local. Cadastre um produto, local e faça uma entrada de lote para visualizar.</td></tr>`;
+                return;
+            }
+
+            const fifoRecommended = sortedLots[0];
+
+            allProductLots.forEach(lot => {
+                const balance = getLotBalanceInLocation(lot.id, selectedLocId);
+                const isFifoTarget = fifoRecommended && fifoRecommended.id === lot.id;
+                const expStatus = getExpirationStatus(lot.exp_date);
+
+                const tr = document.createElement('tr');
+                tr.className = isFifoTarget ? "bg-emerald-50/70 border-l-4 border-l-emerald-500 font-medium" : "hover:bg-slate-50 transition-colors";
+
+                tr.innerHTML = `
+                    <td class="p-3">
+                        ${isFifoTarget ? 
+                            '<span class="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-bold bg-emerald-500 text-white shadow-sm"><i class="fa-solid fa-bolt mr-1"></i> PRÓXIMO A SAIR (FIFO)</span>' : 
+                            (balance > 0 ? '<span class="text-[11px] text-slate-500 bg-slate-100 px-2 py-0.5 rounded">Em Fila FIFO</span>' : '<span class="text-[11px] text-slate-400">Sem Saldo</span>')
+                        }
+                    </td>
+                    <td class="p-3 font-bold text-slate-900">${lot.lot_code}</td>
+                    <td class="p-3 text-slate-600">${formatDate(lot.entry_date)}</td>
+                    <td class="p-3">
+                        <span class="px-2 py-0.5 rounded text-[11px] font-semibold ${expStatus.badgeClass}">
+                            ${formatDate(lot.exp_date)} (${expStatus.label})
+                        </span>
+                    </td>
+                    <td class="p-3 text-slate-600">${lot.init_qty}</td>
+                    <td class="p-3 font-bold text-slate-900">${balance}</td>
+                    <td class="p-3">
+                        ${balance > 0 ? `
+                            <button onclick="quickSelectOutput('${selectedLocId}', '${selectedProdId}', '${lot.id}')" class="px-2.5 py-1 text-[11px] bg-slate-800 hover:bg-slate-900 text-white rounded transition-colors">
+                                Selecionar p/ Saída
+                            </button>
+                        ` : '<span class="text-slate-400 text-[11px]">-</span>'}
+                    </td>
+                `;
+                tableBody.appendChild(tr);
+            });
+        }
+
+        function getExpirationStatus(expDateStr) {
+            if (!expDateStr) return { label: '-', badgeClass: 'bg-slate-100 text-slate-600' };
+            const exp = new Date(expDateStr);
+            const today = new Date();
+            const diffDays = Math.ceil((exp - today) / (1000 * 60 * 60 * 24));
+
+            if (diffDays < 0) {
+                return { label: 'Vencido', badgeClass: 'bg-rose-100 text-rose-800' };
+            } else if (diffDays <= 30) {
+                return { label: `Vence em ${diffDays} dias`, badgeClass: 'bg-amber-100 text-amber-800' };
+            } else {
+                return { label: 'Validade OK', badgeClass: 'bg-emerald-100 text-emerald-800' };
+            }
+        }
+
+        function renderEntradasView() {
+            populateProductDropdown('entradaProduto');
+            populateLocationDropdown('entradaLocal');
+            renderLotsLedgerTable();
+
+            const today = new Date().toISOString().split('T')[0];
+            document.getElementById('entradaDataEntrada').value = today;
+        }
+
+        function handleEntradaSubmit(e) {
+            e.preventDefault();
+            const productId = document.getElementById('entradaProduto').value;
+            const locationId = document.getElementById('entradaLocal').value;
+            const lotCode = document.getElementById('entradaCodigoLote').value.trim();
+            const entryDate = document.getElementById('entradaDataEntrada').value;
+            const expDate = document.getElementById('entradaDataValidade').value;
+            const qty = parseInt(document.getElementById('entradaQuantidade').value) || 0;
+
+            if (!productId || !locationId) {
+                showToast('Cadastre um produto e um local antes de registrar entradas.', 'warning');
+                return;
+            }
+
+            if (qty <= 0) {
+                showToast('A quantidade de entrada deve ser maior que zero.', 'warning');
+                return;
+            }
+
+            const lots = getLots();
+            let lot = lots.find(l => l.lot_code.toLowerCase() === lotCode.toLowerCase() && l.product_id === productId);
+
+            if (!lot) {
+                const newLotId = String(Date.now());
+                lot = {
+                    id: newLotId,
+                    lot_code: lotCode,
+                    product_id: productId,
+                    entry_date: entryDate,
+                    exp_date: expDate,
+                    init_qty: qty
+                };
+                lots.push(lot);
+                setStorage(STORAGE_KEYS.LOTS, lots);
+            }
+
+            const currentBal = getLotBalanceInLocation(lot.id, locationId);
+            setLotBalanceInLocation(lot.id, locationId, currentBal + qty);
+
+            const movement = {
+                uuid: generateUUID(),
+                type: 'ENTRADA',
+                lot_id: lot.id,
+                product_id: productId,
+                origin_location_id: null,
+                dest_location_id: locationId,
+                quantity: qty,
+                user_id: getCurrentUserId(),
+                timestamp: getCurrentTimestamp(),
+                fifo_ignored: false,
+                justification: 'Entrada Regular de Lote'
+            };
+
+            recordMovement(movement);
+            showToast(`Entrada do Lote ${lotCode} salva com sucesso!`, 'success');
+
+            document.getElementById('formEntradaLote').reset();
+            renderEntradasView();
+        }
+
+        function renderLotsLedgerTable() {
+            const lots = getLots();
+            const products = getProducts();
+            const locations = getLocations();
+            const body = document.getElementById('lotsTableBody');
+            body.innerHTML = '';
+
+            document.getElementById('totalLotsBadge').innerText = `${lots.length} lotes`;
+
+            if (lots.length === 0) {
+                body.innerHTML = `<tr><td colspan="6" class="p-4 text-center text-xs text-slate-400">Nenhum lote cadastrado. Utilize o formulário ao lado para registrar a primeira entrada.</td></tr>`;
+                return;
+            }
+
+            lots.forEach(lot => {
+                const prod = products.find(p => p.id === lot.product_id) || { name: 'N/A' };
+                let locationBalancesStr = locations.map(loc => {
+                    const bal = getLotBalanceInLocation(lot.id, loc.id);
+                    return bal > 0 ? `<span class="inline-block bg-slate-100 text-slate-800 px-2 py-0.5 rounded text-[11px] mr-1">${loc.name}: <b>${bal}</b></span>` : '';
+                }).join('');
+
+                if (!locationBalancesStr) locationBalancesStr = '<span class="text-slate-400">Sem saldo</span>';
+
+                const tr = document.createElement('tr');
+                tr.className = "hover:bg-slate-50 transition-colors";
+                tr.innerHTML = `
+                    <td class="p-3 font-bold text-slate-900">${lot.lot_code}</td>
+                    <td class="p-3 text-slate-700">${prod.name}</td>
+                    <td class="p-3 text-slate-600">${formatDate(lot.entry_date)}</td>
+                    <td class="p-3 text-slate-600">${formatDate(lot.exp_date)}</td>
+                    <td class="p-3 font-semibold text-slate-700">${lot.init_qty}</td>
+                    <td class="p-3">${locationBalancesStr}</td>
+                `;
+                body.appendChild(tr);
+            });
+        }
+
+        function renderSaidasView() {
+            populateLocationDropdown('saidaLocal');
+            populateProductDropdown('saidaProduto');
+            updateSaidaLotOptions();
+        }
+
+        function updateSaidaLotOptions() {
+            const locationId = document.getElementById('saidaLocal').value;
+            const productId = document.getElementById('saidaProduto').value;
+            const lotSelect = document.getElementById('saidaLote');
+            const fifoBanner = document.getElementById('saidaFifoDetails');
+
+            lotSelect.innerHTML = '';
+            if (!locationId || !productId) {
+                fifoBanner.innerText = "Cadastre e selecione um local e produto para consultar lotes.";
+                checkSaidaFifoViolation();
+                return;
+            }
+
+            const fifoLots = getFifoOrderedLotsForProductAndLocation(productId, locationId);
+
+            if (fifoLots.length === 0) {
+                lotSelect.innerHTML = `<option value="">Nenhum lote com saldo neste local</option>`;
+                fifoBanner.innerText = "Não há saldo disponível para este produto no local selecionado.";
+                checkSaidaFifoViolation();
+                return;
+            }
+
+            const recommendedLot = fifoLots[0];
+            fifoBanner.innerHTML = `O lote <b>${recommendedLot.lot_code}</b> (Entrada: ${formatDate(recommendedLot.entry_date)} | Saldo: ${recommendedLot.current_balance}) é o mais antigo e **DEVE** ser consumido primeiro.`;
+
+            fifoLots.forEach((lot, index) => {
+                const opt = document.createElement('option');
+                opt.value = lot.id;
+                opt.innerText = `${lot.lot_code} - Entrada: ${formatDate(lot.entry_date)} (Saldo: ${lot.current_balance}) ${index === 0 ? '★ [FIFO RECOMENDADO]' : ''}`;
+                lotSelect.appendChild(opt);
+            });
+
+            lotSelect.value = recommendedLot.id;
+            checkSaidaFifoViolation();
+        }
+
+        function checkSaidaFifoViolation() {
+            const locationId = document.getElementById('saidaLocal').value;
+            const productId = document.getElementById('saidaProduto').value;
+            const selectedLotId = document.getElementById('saidaLote').value;
+            const justificationBox = document.getElementById('saidaJustificativaBox');
+            const justificationInput = document.getElementById('saidaJustificativa');
+
+            if (!selectedLotId) {
+                justificationBox.classList.add('hidden');
+                return;
+            }
+
+            const fifoLots = getFifoOrderedLotsForProductAndLocation(productId, locationId);
+            if (fifoLots.length > 0) {
+                const recommendedLot = fifoLots[0];
+                if (String(selectedLotId) !== String(recommendedLot.id)) {
+                    justificationBox.classList.remove('hidden');
+                    justificationInput.required = true;
+                } else {
+                    justificationBox.classList.add('hidden');
+                    justificationInput.required = false;
+                    justificationInput.value = '';
+                }
+            } else {
+                justificationBox.classList.add('hidden');
+            }
+        }
+
+        function handleSaidaSubmit(e) {
+            e.preventDefault();
+            const locationId = document.getElementById('saidaLocal').value;
+            const productId = document.getElementById('saidaProduto').value;
+            const lotId = document.getElementById('saidaLote').value;
+            const qty = parseInt(document.getElementById('saidaQuantidade').value) || 0;
+            const justificationInput = document.getElementById('saidaJustificativa');
+
+            if (!lotId) {
+                showToast('Selecione um lote válido.', 'warning');
+                return;
+            }
+
+            const currentBal = getLotBalanceInLocation(lotId, locationId);
+            if (qty <= 0 || qty > currentBal) {
+                showToast(`Quantidade inválida. Saldo disponível no lote: ${currentBal}`, 'danger');
+                return;
+            }
+
+            const fifoLots = getFifoOrderedLotsForProductAndLocation(productId, locationId);
+            const isFifoIgnored = fifoLots.length > 0 && String(lotId) !== String(fifoLots[0].id);
+
+            if (isFifoIgnored && !justificationInput.value.trim()) {
+                showToast('A justificativa para o desvio FIFO é obrigatória!', 'warning');
+                return;
+            }
+
+            setLotBalanceInLocation(lotId, locationId, currentBal - qty);
+
+            const movement = {
+                uuid: generateUUID(),
+                type: 'SAIDA',
+                lot_id: lotId,
+                product_id: productId,
+                origin_location_id: locationId,
+                dest_location_id: null,
+                quantity: qty,
+                user_id: getCurrentUserId(),
+                timestamp: getCurrentTimestamp(),
+                fifo_ignored: isFifoIgnored,
+                justification: isFifoIgnored ? justificationInput.value.trim() : 'Saída padrão FIFO'
+            };
+
+            recordMovement(movement);
+            showToast('Baixa de estoque efetuada com sucesso!', 'success');
+
+            document.getElementById('formSaida').reset();
+            renderSaidasView();
+        }
+
+        function quickSelectOutput(locId, prodId, lotId) {
+            navigateTo('saidas');
+            document.getElementById('saidaLocal').value = locId;
+            document.getElementById('saidaProduto').value = prodId;
+            updateSaidaLotOptions();
+            document.getElementById('saidaLote').value = lotId;
+            checkSaidaFifoViolation();
+        }
+
+        function renderTransferenciasView() {
+            populateLocationDropdown('transfLocalOrigem');
+            populateLocationDropdown('transfLocalDestino');
+            populateProductDropdown('transfProduto');
+            updateTransfLotOptions();
+        }
+
+        function updateTransfLotOptions() {
+            const origId = document.getElementById('transfLocalOrigem').value;
+            const prodId = document.getElementById('transfProduto').value;
+            const lotSelect = document.getElementById('transfLote');
+            const fifoBanner = document.getElementById('transfFifoDetails');
+
+            lotSelect.innerHTML = '';
+            if (!origId || !prodId) {
+                fifoBanner.innerText = "Selecione produto e locais para consultar saldos.";
+                checkTransfFifoViolation();
+                return;
+            }
+
+            const fifoLots = getFifoOrderedLotsForProductAndLocation(prodId, origId);
+
+            if (fifoLots.length === 0) {
+                lotSelect.innerHTML = `<option value="">Nenhum lote com saldo nesta origem</option>`;
+                fifoBanner.innerText = "Sem saldo disponível na origem selecionada.";
+                checkTransfFifoViolation();
+                return;
+            }
+
+            const recommended = fifoLots[0];
+            fifoBanner.innerHTML = `Lote recomendado FIFO: <b>${recommended.lot_code}</b> (Saldo: ${recommended.current_balance})`;
+
+            fifoLots.forEach((lot, idx) => {
+                const opt = document.createElement('option');
+                opt.value = lot.id;
+                opt.innerText = `${lot.lot_code} - Saldo: ${lot.current_balance} ${idx === 0 ? '★ [FIFO Prioritário]' : ''}`;
+                lotSelect.appendChild(opt);
+            });
+
+            lotSelect.value = recommended.id;
+            checkTransfFifoViolation();
+        }
+
+        function checkTransfFifoViolation() {
+            const origId = document.getElementById('transfLocalOrigem').value;
+            const prodId = document.getElementById('transfProduto').value;
+            const selectedLotId = document.getElementById('transfLote').value;
+            const box = document.getElementById('transfJustificativaBox');
+            const input = document.getElementById('transfJustificativa');
+
+            if (!selectedLotId) {
+                box.classList.add('hidden');
+                return;
+            }
+
+            const fifoLots = getFifoOrderedLotsForProductAndLocation(prodId, origId);
+            if (fifoLots.length > 0 && String(selectedLotId) !== String(fifoLots[0].id)) {
+                box.classList.remove('hidden');
+                input.required = true;
+            } else {
+                box.classList.add('hidden');
+                input.required = false;
+                input.value = '';
+            }
+        }
+
+        function handleTransferenciaSubmit(e) {
+            e.preventDefault();
+            const origId = document.getElementById('transfLocalOrigem').value;
+            const destId = document.getElementById('transfLocalDestino').value;
+            const prodId = document.getElementById('transfProduto').value;
+            const lotId = document.getElementById('transfLote').value;
+            const qty = parseInt(document.getElementById('transfQuantidade').value) || 0;
+            const justificationInput = document.getElementById('transfJustificativa');
+
+            if (origId === destId) {
+                showToast('O local de origem e destino devem ser diferentes!', 'warning');
+                return;
+            }
+
+            const currentOrigBal = getLotBalanceInLocation(lotId, origId);
+            if (qty <= 0 || qty > currentOrigBal) {
+                showToast(`Quantidade excede o saldo na origem (${currentOrigBal}).`, 'danger');
+                return;
+            }
+
+            const fifoLots = getFifoOrderedLotsForProductAndLocation(prodId, origId);
+            const isFifoIgnored = fifoLots.length > 0 && String(lotId) !== String(fifoLots[0].id);
+
+            if (isFifoIgnored && !justificationInput.value.trim()) {
+                showToast('A justificativa para desvio FIFO na transferência é obrigatória!', 'warning');
+                return;
+            }
+
+            setLotBalanceInLocation(lotId, origId, currentOrigBal - qty);
+            const currentDestBal = getLotBalanceInLocation(lotId, destId);
+            setLotBalanceInLocation(lotId, destId, currentDestBal + qty);
+
+            const movement = {
+                uuid: generateUUID(),
+                type: 'TRANSFERENCIA',
+                lot_id: lotId,
+                product_id: prodId,
+                origin_location_id: origId,
+                dest_location_id: destId,
+                quantity: qty,
+                user_id: getCurrentUserId(),
+                timestamp: getCurrentTimestamp(),
+                fifo_ignored: isFifoIgnored,
+                justification: isFifoIgnored ? justificationInput.value.trim() : 'Transferência regular FIFO'
+            };
+
+            recordMovement(movement);
+            showToast('Transferência entre locais realizada com sucesso!', 'success');
+
+            document.getElementById('formTransferencia').reset();
+            renderTransferenciasView();
+        }
+
+        function renderAjustesView() {
+            populateLocationDropdown('ajusteLocal');
+            populateProductDropdown('ajusteProduto');
+            updateAjusteLotOptions();
+        }
+
+        function updateAjusteLotOptions() {
+            const locId = document.getElementById('ajusteLocal').value;
+            const prodId = document.getElementById('ajusteProduto').value;
+            const lotSelect = document.getElementById('ajusteLote');
+
+            lotSelect.innerHTML = '';
+            if (!locId || !prodId) return;
+
+            const lots = getLots().filter(l => l.product_id === prodId);
+            if (lots.length === 0) {
+                lotSelect.innerHTML = '<option value="">(Nenhum lote para este produto)</option>';
+            } else {
+                lots.forEach(lot => {
+                    const bal = getLotBalanceInLocation(lot.id, locId);
+                    const opt = document.createElement('option');
+                    opt.value = lot.id;
+                    opt.innerText = `${lot.lot_code} (Saldo no local: ${bal})`;
+                    lotSelect.appendChild(opt);
+                });
+            }
+
+            displayCurrentBalanceForAjuste();
+        }
+
+        function displayCurrentBalanceForAjuste() {
+            const locId = document.getElementById('ajusteLocal').value;
+            const lotId = document.getElementById('ajusteLote').value;
+            const balText = document.getElementById('ajusteSaldoAtualText');
+
+            if (lotId && locId) {
+                const bal = getLotBalanceInLocation(lotId, locId);
+                balText.innerText = `${bal} un`;
+            } else {
+                balText.innerText = '0 un';
+            }
+        }
+
+        function handleAjusteSubmit(e) {
+            e.preventDefault();
+            const locId = document.getElementById('ajusteLocal').value;
+            const prodId = document.getElementById('ajusteProduto').value;
+            const lotId = document.getElementById('ajusteLote').value;
+            const opType = document.getElementById('ajusteTipoOperacao').value;
+            const value = parseInt(document.getElementById('ajusteValor').value) || 0;
+            const justification = document.getElementById('ajusteJustificativa').value.trim();
+
+            if (!lotId) {
+                showToast('Selecione um lote válido para ajuste.', 'warning');
+                return;
+            }
+            if (!justification) {
+                showToast('A justificativa é obrigatória para operações de ajuste.', 'warning');
+                return;
+            }
+
+            const currentBal = getLotBalanceInLocation(lotId, locId);
+            let newBal = currentBal;
+
+            if (opType === 'SET') newBal = value;
+            if (opType === 'ADD') newBal = currentBal + value;
+            if (opType === 'SUB') newBal = Math.max(0, currentBal - value);
+
+            const qtyDelta = Math.abs(newBal - currentBal);
+
+            setLotBalanceInLocation(lotId, locId, newBal);
+
+            const movement = {
+                uuid: generateUUID(),
+                type: 'AJUSTE',
+                lot_id: lotId,
+                product_id: prodId,
+                origin_location_id: locId,
+                dest_location_id: locId,
+                quantity: qtyDelta,
+                user_id: getCurrentUserId(),
+                timestamp: getCurrentTimestamp(),
+                fifo_ignored: false,
+                justification: `[Ajuste ${opType}] ${justification}`
+            };
+
+            recordMovement(movement);
+            showToast('Ajuste de saldo efetuado com sucesso!', 'success');
+
+            document.getElementById('formAjuste').reset();
+            renderAjustesView();
+        }
+
+        function recordMovement(movement) {
+            if (isOnline()) {
+                const movements = getMovements();
+                movements.unshift(movement);
+                setStorage(STORAGE_KEYS.MOVEMENTS, movements);
+            } else {
+                const queue = getOfflineQueue();
+                queue.push(movement);
+                setStorage(STORAGE_KEYS.OFFLINE_QUEUE, queue);
+                updateSyncQueueBadge();
+                showToast('Movimentação salva no banco OFFLINE local (PWA).', 'info');
+            }
+        }
+
+        function renderHistoryTable() {
+            const movements = getMovements();
+            const products = getProducts();
+            const locations = getLocations();
+            const lots = getLots();
+            const users = getUsers();
+
+            const prodFilter = document.getElementById('histFilterProduto');
+            prodFilter.innerHTML = '<option value="">Todos os Produtos</option>' + 
+                products.map(p => `<option value="${p.id}">${p.name}</option>`).join('');
+
+            const typeVal = document.getElementById('histFilterTipo').value;
+            const prodVal = document.getElementById('histFilterProduto').value;
+            const fifoVal = document.getElementById('histFilterFifo').value;
+            const searchVal = document.getElementById('histFilterSearch').value.toLowerCase();
+
+            const filtered = movements.filter(m => {
+                if (typeVal && m.type !== typeVal) return false;
+                if (prodVal && m.product_id !== prodVal) return false;
+                if (fifoVal === 'IGNORED' && !m.fifo_ignored) return false;
+                if (fifoVal === 'NORMAL' && m.fifo_ignored) return false;
+                if (searchVal) {
+                    const prod = products.find(p => p.id === m.product_id);
+                    const lot = lots.find(l => l.id === m.lot_id);
+                    const usr = users.find(u => u.id === m.user_id);
+                    const matchText = `${m.uuid} ${m.justification} ${prod ? prod.name : ''} ${lot ? lot.lot_code : ''} ${usr ? usr.name : ''}`.toLowerCase();
+                    if (!matchText.includes(searchVal)) return false;
+                }
+                return true;
+            });
+
+            const tbody = document.getElementById('historyTableBody');
+            tbody.innerHTML = '';
+
+            if (filtered.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="8" class="p-4 text-center text-xs text-slate-400">Nenhuma movimentação registrada. As operações realizadas aparecerão nesta tabela.</td></tr>`;
+                return;
+            }
+
+            filtered.forEach(m => {
+                const prod = products.find(p => p.id === m.product_id) || { name: 'Desconhecido' };
+                const lot = lots.find(l => l.id === m.lot_id) || { lot_code: 'N/A' };
+                const orig = locations.find(l => l.id === m.origin_location_id);
+                const dest = locations.find(l => l.id === m.dest_location_id);
+                const usr = users.find(u => u.id === m.user_id) || { name: 'Usuário' };
+
+                let typeBadge = "bg-slate-100 text-slate-700";
+                if (m.type === 'ENTRADA') typeBadge = "bg-emerald-100 text-emerald-800";
+                if (m.type === 'SAIDA') typeBadge = "bg-rose-100 text-rose-800";
+                if (m.type === 'TRANSFERENCIA') typeBadge = "bg-indigo-100 text-indigo-800";
+                if (m.type === 'AJUSTE') typeBadge = "bg-amber-100 text-amber-800";
+
+                const tr = document.createElement('tr');
+                tr.className = "hover:bg-slate-50 transition-colors";
+                tr.innerHTML = `
+                    <td class="p-3 text-slate-600 whitespace-nowrap">${m.timestamp}</td>
+                    <td class="p-3"><span class="px-2 py-0.5 rounded font-bold text-[11px] ${typeBadge}">${m.type}</span></td>
+                    <td class="p-3">
+                        <div class="font-bold text-slate-900">${prod.name}</div>
+                        <div class="text-[11px] text-slate-500">Lote: ${lot.lot_code}</div>
+                    </td>
+                    <td class="p-3 text-slate-700">
+                        ${orig ? orig.name : '-'} &rarr; ${dest ? dest.name : '-'}
+                    </td>
+                    <td class="p-3 font-bold text-slate-900">${m.quantity} ${prod.unit || ''}</td>
+                    <td class="p-3 text-slate-600">${usr.name}</td>
+                    <td class="p-3">
+                        ${m.fifo_ignored ? 
+                            '<span class="inline-flex items-center px-2 py-0.5 rounded bg-rose-100 text-rose-800 font-bold text-[10px]"><i class="fa-solid fa-triangle-exclamation mr-1"></i> Desvio FIFO</span>' : 
+                            '<span class="text-emerald-700 font-semibold text-[11px]"><i class="fa-solid fa-check mr-1"></i> Respeitado</span>'}
+                    </td>
+                    <td class="p-3 max-w-xs">
+                        <div class="font-mono text-[10px] text-slate-400 truncate" title="${m.uuid}">UUID: ${m.uuid}</div>
+                        <div class="text-[11px] text-slate-600 italic truncate" title="${m.justification}">${m.justification || '-'}</div>
+                    </td>
+                `;
+                tbody.appendChild(tr);
+            });
+        }
+
+        function exportHistoryCSV() {
+            const movements = getMovements();
+            const products = getProducts();
+            const lots = getLots();
+            const users = getUsers();
+
+            let csvContent = "data:text/csv;charset=utf-8,UUID,DataHora,Tipo,Produto,Lote,Quantidade,Usuario,FifoIgnorado,Justificativa\n";
+
+            movements.forEach(m => {
+                const prod = products.find(p => p.id === m.product_id) || { name: '' };
+                const lot = lots.find(l => l.id === m.lot_id) || { lot_code: '' };
+                const usr = users.find(u => u.id === m.user_id) || { name: '' };
+
+                const row = [
+                    m.uuid,
+                    `"${m.timestamp}"`,
+                    m.type,
+                    `"${prod.name}"`,
+                    `"${lot.lot_code}"`,
+                    m.quantity,
+                    `"${usr.name}"`,
+                    m.fifo_ignored ? "SIM" : "NAO",
+                    `"${(m.justification || '').replace(/"/g, '""')}"`
+                ].join(",");
+                csvContent += row + "\n";
+            });
+
+            const encodedUri = encodeURI(csvContent);
+            const link = document.createElement("a");
+            link.setAttribute("href", encodedUri);
+            link.setAttribute("download", `historico_estoque_fifo_${new Date().toISOString().split('T')[0]}.csv`);
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            showToast('Relatório CSV exportado com sucesso!', 'success');
+        }
+
+        let activeCrudType = null;
+        let editingItemId = null;
+
+        function renderCrudProducts() {
+            const products = getProducts();
+            const tbody = document.getElementById('crudProductsTable');
+            tbody.innerHTML = '';
+
+            if (products.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="6" class="p-4 text-center text-xs text-slate-400">Nenhum produto cadastrado no sistema. Clique em "+ Novo Produto" acima para cadastrar.</td></tr>`;
+                return;
+            }
+
+            products.forEach(p => {
+                const tr = document.createElement('tr');
+                tr.className = "hover:bg-slate-50 transition-colors";
+                tr.innerHTML = `
+                    <td class="p-3 font-mono font-bold text-slate-800">${p.sku}</td>
+                    <td class="p-3 font-semibold text-slate-900">${p.name}</td>
+                    <td class="p-3 text-slate-600">${p.unit}</td>
+                    <td class="p-3 font-bold text-slate-700">${p.min_stock}</td>
+                    <td class="p-3">
+                        <span class="px-2 py-0.5 rounded text-[11px] font-semibold ${p.status === 'Ativo' ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-100 text-slate-600'}">${p.status}</span>
+                    </td>
+                    <td class="p-3 text-right">
+                        <button onclick="editProduct('${p.id}')" class="text-xs text-indigo-600 hover:text-indigo-800 font-semibold mr-2">Editar</button>
+                    </td>
+                `;
+                tbody.appendChild(tr);
+            });
+        }
+
+        function openProductModal(prodId = null) {
+            activeCrudType = 'product';
+            editingItemId = prodId;
+            const products = getProducts();
+            const prod = prodId ? products.find(p => p.id === prodId) : { sku: '', name: '', unit: 'Pacote', min_stock: 10, status: 'Ativo' };
+
+            document.getElementById('modalTitle').innerText = prodId ? 'Editar Produto' : 'Novo Produto';
+            document.getElementById('modalBody').innerHTML = `
+                <div>
+                    <label class="text-xs font-semibold text-slate-700 block mb-1">SKU</label>
+                    <input type="text" id="crudProductSku" placeholder="Ex: PRD001" value="${prod.sku}" class="w-full bg-slate-50 border border-slate-300 rounded-lg p-2 text-xs">
+                </div>
+                <div>
+                    <label class="text-xs font-semibold text-slate-700 block mb-1">Nome do Produto</label>
+                    <input type="text" id="crudProductName" placeholder="Ex: Arroz 5kg" value="${prod.name}" class="w-full bg-slate-50 border border-slate-300 rounded-lg p-2 text-xs">
+                </div>
+                <div>
+                    <label class="text-xs font-semibold text-slate-700 block mb-1">Unidade de Medida</label>
+                    <input type="text" id="crudProductUnit" placeholder="Ex: Pacote, Kg, Unidade" value="${prod.unit}" class="w-full bg-slate-50 border border-slate-300 rounded-lg p-2 text-xs">
+                </div>
+                <div>
+                    <label class="text-xs font-semibold text-slate-700 block mb-1">Estoque Mínimo</label>
+                    <input type="number" id="crudProductMin" value="${prod.min_stock}" class="w-full bg-slate-50 border border-slate-300 rounded-lg p-2 text-xs">
+                </div>
+                <div>
+                    <label class="text-xs font-semibold text-slate-700 block mb-1">Status</label>
+                    <select id="crudProductStatus" class="w-full bg-slate-50 border border-slate-300 rounded-lg p-2 text-xs">
+                        <option value="Ativo" ${prod.status === 'Ativo' ? 'selected' : ''}>Ativo</option>
+                        <option value="Inativo" ${prod.status === 'Inativo' ? 'selected' : ''}>Inativo</option>
+                    </select>
+                </div>
+            `;
+            document.getElementById('crudModal').classList.remove('hidden');
+        }
+
+        function editProduct(id) { openProductModal(id); }
+
+        function renderCrudLocations() {
+            const locations = getLocations();
+            const tbody = document.getElementById('crudLocationsTable');
+            tbody.innerHTML = '';
+
+            if (locations.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="5" class="p-4 text-center text-xs text-slate-400">Nenhum local de estoque cadastrado. Clique em "+ Novo Local" para criar um local.</td></tr>`;
+                return;
+            }
+
+            locations.forEach(l => {
+                const tr = document.createElement('tr');
+                tr.className = "hover:bg-slate-50 transition-colors";
+                tr.innerHTML = `
+                    <td class="p-3 font-mono text-slate-500">${l.id}</td>
+                    <td class="p-3 font-bold text-slate-900">${l.name}</td>
+                    <td class="p-3 text-slate-600">${l.description}</td>
+                    <td class="p-3">
+                        <span class="px-2 py-0.5 rounded text-[11px] font-semibold ${l.status === 'Ativo' ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-100 text-slate-600'}">${l.status}</span>
+                    </td>
+                    <td class="p-3 text-right">
+                        <button onclick="editLocation('${l.id}')" class="text-xs text-indigo-600 hover:text-indigo-800 font-semibold">Editar</button>
+                    </td>
+                `;
+                tbody.appendChild(tr);
+            });
+        }
+
+        function openLocationModal(locId = null) {
+            activeCrudType = 'location';
+            editingItemId = locId;
+            const locations = getLocations();
+            const loc = locId ? locations.find(l => l.id === locId) : { name: '', description: '', status: 'Ativo' };
+
+            document.getElementById('modalTitle').innerText = locId ? 'Editar Local' : 'Novo Local de Estoque';
+            document.getElementById('modalBody').innerHTML = `
+                <div>
+                    <label class="text-xs font-semibold text-slate-700 block mb-1">Nome do Local</label>
+                    <input type="text" id="crudLocName" placeholder="Ex: Almoxarifado Central" value="${loc.name}" class="w-full bg-slate-50 border border-slate-300 rounded-lg p-2 text-xs">
+                </div>
+                <div>
+                    <label class="text-xs font-semibold text-slate-700 block mb-1">Descrição</label>
+                    <input type="text" id="crudLocDesc" placeholder="Ex: Depósito principal de suprimentos" value="${loc.description}" class="w-full bg-slate-50 border border-slate-300 rounded-lg p-2 text-xs">
+                </div>
+                <div>
+                    <label class="text-xs font-semibold text-slate-700 block mb-1">Status</label>
+                    <select id="crudLocStatus" class="w-full bg-slate-50 border border-slate-300 rounded-lg p-2 text-xs">
+                        <option value="Ativo" ${loc.status === 'Ativo' ? 'selected' : ''}>Ativo</option>
+                        <option value="Inativo" ${loc.status === 'Inativo' ? 'selected' : ''}>Inativo</option>
+                    </select>
+                </div>
+            `;
+            document.getElementById('crudModal').classList.remove('hidden');
+        }
+
+        function editLocation(id) { openLocationModal(id); }
+
+        function renderCrudUsers() {
+            const users = getUsers();
+            const tbody = document.getElementById('crudUsersTable');
+            tbody.innerHTML = '';
+
+            if (users.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="5" class="p-4 text-center text-xs text-slate-400">Nenhum usuário cadastrado. Clique em "+ Novo Usuário".</td></tr>`;
+                return;
+            }
+
+            users.forEach(u => {
+                const tr = document.createElement('tr');
+                tr.className = "hover:bg-slate-50 transition-colors";
+                tr.innerHTML = `
+                    <td class="p-3 font-bold text-slate-900">${u.name}</td>
+                    <td class="p-3 text-slate-600">${u.email}</td>
+                    <td class="p-3"><span class="px-2 py-0.5 rounded text-[11px] font-bold bg-indigo-50 text-indigo-700">${u.role}</span></td>
+                    <td class="p-3">
+                        <span class="px-2 py-0.5 rounded text-[11px] font-semibold ${u.status === 'Ativo' ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-100 text-slate-600'}">${u.status}</span>
+                    </td>
+                    <td class="p-3 text-right">
+                        <button onclick="editUser('${u.id}')" class="text-xs text-indigo-600 hover:text-indigo-800 font-semibold">Editar</button>
+                    </td>
+                `;
+                tbody.appendChild(tr);
+            });
+        }
+
+        function openUserModal(userId = null) {
+            activeCrudType = 'user';
+            editingItemId = userId;
+            const users = getUsers();
+            const usr = userId ? users.find(u => u.id === userId) : { name: '', email: '', role: 'OPERADOR', status: 'Ativo' };
+
+            document.getElementById('modalTitle').innerText = userId ? 'Editar Usuário' : 'Novo Usuário';
+            document.getElementById('modalBody').innerHTML = `
+                <div>
+                    <label class="text-xs font-semibold text-slate-700 block mb-1">Nome Completo</label>
+                    <input type="text" id="crudUserName" value="${usr.name}" class="w-full bg-slate-50 border border-slate-300 rounded-lg p-2 text-xs">
+                </div>
+                <div>
+                    <label class="text-xs font-semibold text-slate-700 block mb-1">Email</label>
+                    <input type="email" id="crudUserEmail" value="${usr.email}" class="w-full bg-slate-50 border border-slate-300 rounded-lg p-2 text-xs">
+                </div>
+                <div>
+                    <label class="text-xs font-semibold text-slate-700 block mb-1">Perfil / Role</label>
+                    <select id="crudUserRole" class="w-full bg-slate-50 border border-slate-300 rounded-lg p-2 text-xs">
+                        <option value="ADMIN" ${usr.role === 'ADMIN' ? 'selected' : ''}>ADMIN</option>
+                        <option value="GESTOR" ${usr.role === 'GESTOR' ? 'selected' : ''}>GESTOR</option>
+                        <option value="OPERADOR" ${usr.role === 'OPERADOR' ? 'selected' : ''}>OPERADOR</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="text-xs font-semibold text-slate-700 block mb-1">Status</label>
+                    <select id="crudUserStatus" class="w-full bg-slate-50 border border-slate-300 rounded-lg p-2 text-xs">
+                        <option value="Ativo" ${usr.status === 'Ativo' ? 'selected' : ''}>Ativo</option>
+                        <option value="Inativo" ${usr.status === 'Inativo' ? 'selected' : ''}>Inativo</option>
+                    </select>
+                </div>
+            `;
+            document.getElementById('crudModal').classList.remove('hidden');
+        }
+
+        function editUser(id) { openUserModal(id); }
+
+        function saveCrudModal() {
+            if (activeCrudType === 'product') {
+                const products = getProducts();
+                const sku = document.getElementById('crudProductSku').value.trim();
+                const name = document.getElementById('crudProductName').value.trim();
+                const unit = document.getElementById('crudProductUnit').value.trim();
+                const min = parseInt(document.getElementById('crudProductMin').value) || 0;
+                const status = document.getElementById('crudProductStatus').value;
+
+                if (!sku || !name) { showToast('Preencha os campos obrigatórios!', 'warning'); return; }
+
+                if (editingItemId) {
+                    const idx = products.findIndex(p => p.id === editingItemId);
+                    if (idx !== -1) products[idx] = { ...products[idx], sku, name, unit, min_stock: min, status };
+                } else {
+                    products.push({ id: String(Date.now()), sku, name, unit, min_stock: min, status });
+                }
+                setStorage(STORAGE_KEYS.PRODUCTS, products);
+                renderCrudProducts();
+            }
+
+            if (activeCrudType === 'location') {
+                const locations = getLocations();
+                const name = document.getElementById('crudLocName').value.trim();
+                const desc = document.getElementById('crudLocDesc').value.trim();
+                const status = document.getElementById('crudLocStatus').value;
+
+                if (!name) { showToast('Informe o nome do local!', 'warning'); return; }
+
+                if (editingItemId) {
+                    const idx = locations.findIndex(l => l.id === editingItemId);
+                    if (idx !== -1) locations[idx] = { ...locations[idx], name, description: desc, status };
+                } else {
+                    locations.push({ id: String(Date.now()), name, description: desc, status });
+                }
+                setStorage(STORAGE_KEYS.LOCATIONS, locations);
+                renderCrudLocations();
+            }
+
+            if (activeCrudType === 'user') {
+                const users = getUsers();
+                const name = document.getElementById('crudUserName').value.trim();
+                const email = document.getElementById('crudUserEmail').value.trim();
+                const role = document.getElementById('crudUserRole').value;
+                const status = document.getElementById('crudUserStatus').value;
+
+                if (!name || !email) { showToast('Preencha o nome e email do usuário!', 'warning'); return; }
+
+                if (editingItemId) {
+                    const idx = users.findIndex(u => u.id === editingItemId);
+                    if (idx !== -1) users[idx] = { ...users[idx], name, email, role, status };
+                } else {
+                    users.push({ id: String(Date.now()), name, email, role, status });
+                }
+                setStorage(STORAGE_KEYS.USERS, users);
+                renderCrudUsers();
+                populateUserDropdown();
+            }
+
+            closeCrudModal();
+            showToast('Registro salvo com sucesso!', 'success');
+        }
+
+        function closeCrudModal() {
+            document.getElementById('crudModal').classList.add('hidden');
+        }
+
+        function populateProductDropdown(elementId) {
+            const products = getProducts().filter(p => p.status === 'Ativo');
+            const select = document.getElementById(elementId);
+            if (select) {
+                if (products.length === 0) {
+                    select.innerHTML = '<option value="">(Nenhum produto cadastrado)</option>';
+                } else {
+                    select.innerHTML = products.map(p => `<option value="${p.id}">${p.name} (${p.sku})</option>`).join('');
+                }
+            }
+        }
+
+        function populateLocationDropdown(elementId) {
+            const locations = getLocations().filter(l => l.status === 'Ativo');
+            const select = document.getElementById(elementId);
+            if (select) {
+                if (locations.length === 0) {
+                    select.innerHTML = '<option value="">(Nenhum local cadastrado)</option>';
+                } else {
+                    select.innerHTML = locations.map(l => `<option value="${l.id}">${l.name}</option>`).join('');
+                }
+            }
+        }
+
+        function populateUserDropdown() {
+            const users = getUsers().filter(u => u.status === 'Ativo');
+            const currentId = getCurrentUserId();
+            const select = document.getElementById('currentUserSelect');
+
+            if (users.length === 0) {
+                select.innerHTML = '<option value="1">Administrador (ADMIN)</option>';
+            } else {
+                select.innerHTML = users.map(u => `<option value="${u.id}" ${u.id === currentId ? 'selected' : ''}>${u.name} (${u.role})</option>`).join('');
+            }
+            updateCurrentUserBadge();
+        }
+
+        function changeCurrentUser(id) {
+            setStorage(STORAGE_KEYS.CURRENT_USER_ID, id);
+            updateCurrentUserBadge();
+            showToast(`Operador alterado para: ${getCurrentUser().name}`, 'info');
+        }
+
+        function updateCurrentUserBadge() {
+            const user = getCurrentUser();
+            document.getElementById('userRoleBadge').innerText = user.role;
+            document.getElementById('userEmailLabel').innerText = user.email;
+        }
+
+        function formatDate(dateStr) {
+            if (!dateStr) return '-';
+            const parts = dateStr.split('-');
+            if (parts.length === 3) return `${parts[2]}/${parts[1]}/${parts[0]}`;
+            return dateStr;
+        }
+
+        function getCurrentTimestamp() {
+            const now = new Date();
+            const date = now.toISOString().split('T')[0];
+            const time = now.toTimeString().split(' ')[0];
+            return `${date} ${time}`;
+        }
+
+        function showToast(message, type = 'info') {
+            const container = document.getElementById('toastContainer');
+            const toast = document.createElement('div');
+
+            let bgClass = "bg-slate-900 text-white";
+            let icon = "fa-circle-info";
+
+            if (type === 'success') { bgClass = "bg-emerald-600 text-white"; icon = "fa-circle-check"; }
+            if (type === 'warning') { bgClass = "bg-amber-500 text-white"; icon = "fa-triangle-exclamation"; }
+            if (type === 'danger') { bgClass = "bg-rose-600 text-white"; icon = "fa-circle-xmark"; }
+
+            toast.className = `p-3.5 rounded-xl shadow-xl flex items-center space-x-3 text-xs font-semibold transform transition-all duration-300 translate-y-2 opacity-0 ${bgClass}`;
+            toast.innerHTML = `
+                <i class="fa-solid ${icon} text-base"></i>
+                <span class="flex-1">${message}</span>
+            `;
+
+            container.appendChild(toast);
+
+            setTimeout(() => {
+                toast.classList.remove('translate-y-2', 'opacity-0');
+            }, 10);
+
+            setTimeout(() => {
+                toast.classList.add('opacity-0', 'translate-y-2');
+                setTimeout(() => toast.remove(), 300);
+            }, 3500);
+        }
+
+        window.onload = function() {
+            initSystemData();
+            populateUserDropdown();
+            updateOnlineUI();
+
+            document.getElementById('mobileMenuBtn').addEventListener('click', () => {
+                document.getElementById('sidebar').classList.remove('-translate-x-full');
+            });
+            document.getElementById('closeMobileSidebar').addEventListener('click', () => {
+                document.getElementById('sidebar').classList.add('-translate-x-full');
+            });
+
+            navigateTo('dashboard');
+        };
+    </script>
+</body>
+</html>
