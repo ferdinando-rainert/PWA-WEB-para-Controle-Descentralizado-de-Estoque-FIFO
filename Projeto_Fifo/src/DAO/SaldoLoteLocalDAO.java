@@ -1,6 +1,7 @@
 package DAO;
 
 import java.math.BigDecimal;
+import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
@@ -12,83 +13,81 @@ import entities.SaldoLoteLocal;
 
 public class SaldoLoteLocalDAO {
 
-	// Lista os saldos de um produto em um local, do lote MAIS ANTIGO para o mais novo (regra FIFO).
-	// FOR UPDATE trava as linhas durante a transação para evitar saída duplicada.
+	private Connection conn;
+
+	public SaldoLoteLocalDAO() {
+	}
+
+	public SaldoLoteLocalDAO(Connection conn) {
+		this.conn = conn;
+	}
+
+	private Connection getEffectiveConnection() throws SQLException {
+		return (this.conn != null && !this.conn.isClosed()) ? this.conn : Conexao.getConexao();
+	}
+
+	// Calcula a soma do saldo do produto em um local específico
+	public BigDecimal saldoTotal(int produtoId, int localId) throws SQLException {
+		return saldoTotal(produtoId, localId, getEffectiveConnection());
+	}
+
+	public BigDecimal saldoTotal(int produtoId, int localId, Connection connection) throws SQLException {
+		String sql = "SELECT COALESCE(SUM(s.quantidade), 0) FROM saldo_lote_local s "
+				+ "JOIN lote l ON l.id = s.lote_id "
+				+ "WHERE l.produto_id = ? AND s.local_id = ?";
+
+		try (PreparedStatement stmt = connection.prepareStatement(sql)) {
+			stmt.setInt(1, produtoId);
+			stmt.setInt(2, localId);
+			try (ResultSet rs = stmt.executeQuery()) {
+				if (rs.next()) {
+					return rs.getBigDecimal(1);
+				}
+			}
+		}
+		return BigDecimal.ZERO;
+	}
+
+	public void somar(int loteId, int localId, BigDecimal qtd) throws SQLException {
+		somar(loteId, localId, qtd, getEffectiveConnection());
+	}
+
+	public void somar(int loteId, int localId, BigDecimal qtd, Connection connection) throws SQLException {
+		String sql = "INSERT INTO saldo_lote_local (lote_id, local_id, quantidade) VALUES (?, ?, ?) "
+				+ "ON CONFLICT (lote_id, local_id) DO UPDATE SET quantidade = saldo_lote_local.quantidade + EXCLUDED.quantidade";
+
+		try (PreparedStatement stmt = connection.prepareStatement(sql)) {
+			stmt.setInt(1, loteId);
+			stmt.setInt(2, localId);
+			stmt.setBigDecimal(3, qtd);
+			stmt.executeUpdate();
+		}
+	}
+
 	public List<SaldoLoteLocal> listarFifo(int produtoId, int localId) throws SQLException {
+		return listarFifo(produtoId, localId, getEffectiveConnection());
+	}
 
+	public List<SaldoLoteLocal> listarFifo(int produtoId, int localId, Connection connection) throws SQLException {
 		List<SaldoLoteLocal> lista = new ArrayList<>();
-
 		String sql = "SELECT s.lote_id, s.local_id, s.quantidade FROM saldo_lote_local s "
 				+ "JOIN lote l ON l.id = s.lote_id "
 				+ "WHERE l.produto_id = ? AND s.local_id = ? AND s.quantidade > 0 "
-				+ "ORDER BY l.data_entrada ASC, l.id ASC FOR UPDATE";
+				+ "ORDER BY l.data_validade ASC, l.id ASC FOR UPDATE";
 
-		try (PreparedStatement stmt = Conexao.getConexao().prepareStatement(sql)) {
-
+		try (PreparedStatement stmt = connection.prepareStatement(sql)) {
 			stmt.setInt(1, produtoId);
 			stmt.setInt(2, localId);
-
 			try (ResultSet rs = stmt.executeQuery()) {
 				while (rs.next()) {
-					lista.add(new SaldoLoteLocal(rs.getInt("lote_id"), rs.getInt("local_id"),
-							rs.getBigDecimal("quantidade")));
+					lista.add(new SaldoLoteLocal(
+						rs.getInt("lote_id"),
+						rs.getInt("local_id"),
+						rs.getBigDecimal("quantidade")
+					));
 				}
 			}
 		}
 		return lista;
 	}
-
-	// Soma (delta positivo) ou subtrai (delta negativo) a quantidade de um lote em um local.
-	public void somar(int loteId, int localId, BigDecimal delta) throws SQLException {
-
-		String update = "UPDATE saldo_lote_local SET quantidade = quantidade + ? WHERE lote_id = ? AND local_id = ?";
-
-		try (PreparedStatement stmt = Conexao.getConexao().prepareStatement(update)) {
-
-			stmt.setBigDecimal(1, delta);
-			stmt.setInt(2, loteId);
-			stmt.setInt(3, localId);
-
-			if (stmt.executeUpdate() > 0) {
-				return;
-			}
-		}
-
-		// Ainda não existe saldo desse lote nesse local: cria a linha
-		if (delta.signum() < 0) {
-			throw new SQLException("Saldo inexistente para o lote " + loteId + " no local " + localId);
-		}
-
-		String insert = "INSERT INTO saldo_lote_local (lote_id, local_id, quantidade) VALUES (?, ?, ?)";
-
-		try (PreparedStatement stmt = Conexao.getConexao().prepareStatement(insert)) {
-			stmt.setInt(1, loteId);
-			stmt.setInt(2, localId);
-			stmt.setBigDecimal(3, delta);
-			stmt.executeUpdate();
-		}
-	}
-
-	// Saldo total de um produto em um local (soma de todos os lotes)
-	public BigDecimal saldoTotal(int produtoId, int localId) {
-
-		String sql = "SELECT COALESCE(SUM(s.quantidade), 0) FROM saldo_lote_local s "
-				+ "JOIN lote l ON l.id = s.lote_id WHERE l.produto_id = ? AND s.local_id = ?";
-
-		try (PreparedStatement stmt = Conexao.getConexao().prepareStatement(sql)) {
-
-			stmt.setInt(1, produtoId);
-			stmt.setInt(2, localId);
-
-			try (ResultSet rs = stmt.executeQuery()) {
-				rs.next();
-				return rs.getBigDecimal(1);
-			}
-
-		} catch (SQLException e) {
-			System.err.println("Erro ao consultar o saldo: " + e.getMessage());
-			return BigDecimal.ZERO;
-		}
-	}
-
 }

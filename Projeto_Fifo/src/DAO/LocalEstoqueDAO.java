@@ -1,5 +1,6 @@
 package DAO;
 
+import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
@@ -11,68 +12,74 @@ import entities.LocalEstoque;
 
 public class LocalEstoqueDAO {
 
-	// Método para cadastrar Local de Estoque
-	public void cadastrarLocal(LocalEstoque local) {
+	private Connection conn;
 
+	public LocalEstoqueDAO() {
+	}
+
+	public LocalEstoqueDAO(Connection conn) {
+		this.conn = conn;
+	}
+
+	private Connection getEffectiveConnection() throws SQLException {
+		return (this.conn != null && !this.conn.isClosed()) ? this.conn : Conexao.getConexao();
+	}
+
+	public void cadastrarLocal(LocalEstoque local) throws SQLException {
+		cadastrarLocal(local, getEffectiveConnection());
+	}
+
+	public void cadastrarLocal(LocalEstoque local, Connection connection) throws SQLException {
 		String sql = "INSERT INTO local_estoque (nome, descricao) VALUES (?, ?)";
-
-		try (PreparedStatement stmt = Conexao.getConexao().prepareStatement(sql)) {
-
+		try (PreparedStatement stmt = connection.prepareStatement(sql)) {
 			stmt.setString(1, local.getNome());
 			stmt.setString(2, local.getDescricao());
-
 			stmt.executeUpdate();
-			System.out.println("Local de estoque cadastrado!");
-
-		} catch (SQLException e) {
-			System.err.println("Erro ao cadastrar o Local: " + e.getMessage());
 		}
 	}
 
-	// Método para buscar Local pelo ID (retorna null se não existir)
-	public LocalEstoque buscarPorId(int id) {
+	public LocalEstoque buscarPorId(int id) throws SQLException {
+		return buscarPorId(id, getEffectiveConnection());
+	}
 
+	public LocalEstoque buscarPorId(int id, Connection connection) throws SQLException {
 		String sql = "SELECT * FROM local_estoque WHERE id = ?";
-
-		try (PreparedStatement stmt = Conexao.getConexao().prepareStatement(sql)) {
-
+		try (PreparedStatement stmt = connection.prepareStatement(sql)) {
 			stmt.setInt(1, id);
 			try (ResultSet rs = stmt.executeQuery()) {
 				if (rs.next()) {
-					return mapear(rs);
+					LocalEstoque local = new LocalEstoque();
+					local.setId(rs.getInt("id"));
+					local.setNome(rs.getString("nome"));
+					local.setDescricao(rs.getString("descricao"));
+					local.setAtivo(rs.getBoolean("ativo"));
+					return local;
 				}
 			}
-
-		} catch (SQLException e) {
-			System.err.println("Erro ao buscar o Local: " + e.getMessage());
 		}
 		return null;
 	}
 
-	// Método para listar todos os Locais
-	public List<LocalEstoque> listarTodos() {
+	public List<LocalEstoque> listarTodos() throws SQLException {
+		return listarTodos(getEffectiveConnection());
+	}
 
+	public List<LocalEstoque> listarTodos(Connection connection) throws SQLException {
 		List<LocalEstoque> lista = new ArrayList<>();
 		String sql = "SELECT * FROM local_estoque ORDER BY nome";
 
-		try (PreparedStatement stmt = Conexao.getConexao().prepareStatement(sql);
+		try (PreparedStatement stmt = connection.prepareStatement(sql);
 				ResultSet rs = stmt.executeQuery()) {
 
 			while (rs.next()) {
-				lista.add(mapear(rs));
+				LocalEstoque local = new LocalEstoque();
+				local.setId(rs.getInt("id"));
+				local.setNome(rs.getString("nome"));
+				local.setDescricao(rs.getString("descricao"));
+				local.setAtivo(rs.getBoolean("ativo"));
+				lista.add(local);
 			}
-
-		} catch (SQLException e) {
-			System.err.println("Erro ao listar os Locais: " + e.getMessage());
 		}
 		return lista;
 	}
-
-	private LocalEstoque mapear(ResultSet rs) throws SQLException {
-		LocalEstoque l = new LocalEstoque(rs.getString("nome"), rs.getString("descricao"));
-		l.setId(rs.getInt("id"));
-		l.setAtivo(rs.getBoolean("ativo"));
-		return l;
-	}
-
 }

@@ -19,67 +19,73 @@ import entities.Produto;
 import entities.SaldoLoteLocal;
 import entities.TipoMovimentacao;
 
-// Regras de negócio do estoque: entrada, saída FIFO e transferência.
-// Cada operação roda numa transação: ou grava tudo, ou desfaz tudo (rollback).
 public class EstoqueService {
 
-	private final ProdutoDAO produtoDAO = new ProdutoDAO();
-	private final LocalEstoqueDAO localDAO = new LocalEstoqueDAO();
-	private final LoteDAO loteDAO = new LoteDAO();
-	private final SaldoLoteLocalDAO saldoDAO = new SaldoLoteLocalDAO();
-	private final MovimentacaoDAO movimentacaoDAO = new MovimentacaoDAO();
-
-	// ENTRADA: cria um lote novo e soma o saldo no local de destino
 	public void registrarEntrada(int produtoId, int localId, String codigoLote, LocalDate validade, BigDecimal qtd,
 			int usuarioId) throws SQLException {
 
 		validarQuantidade(qtd);
-		Produto produto = produtoDAO.buscarPorId(produtoId);
-		if (produto == null || !produto.isAtivo()) {
-			throw new IllegalArgumentException("Produto inexistente ou inativo (não aceita novas entradas).");
-		}
-		validarLocal(localId);
 
 		Connection c = Conexao.getConexao();
 		try {
 			c.setAutoCommit(false);
 
-			int loteId = loteDAO.cadastrarLote(new Lote(produtoId, codigoLote, validade, qtd));
-			saldoDAO.somar(loteId, localId, qtd);
-			movimentacaoDAO.registrar(nova(TipoMovimentacao.ENTRADA, loteId, null, localId, qtd, usuarioId));
+			ProdutoDAO produtoDAO = new ProdutoDAO(c);
+			LocalEstoqueDAO localDAO = new LocalEstoqueDAO(c);
+			LoteDAO loteDAO = new LoteDAO(c);
+			SaldoLoteLocalDAO saldoDAO = new SaldoLoteLocalDAO(c);
+			MovimentacaoDAO movimentacaoDAO = new MovimentacaoDAO(c);
+
+			Produto produto = produtoDAO.buscarPorId(produtoId, c);
+			if (produto == null || !produto.isAtivo()) {
+				throw new IllegalArgumentException("Produto inexistente ou inativo (não aceita novas entradas).");
+			}
+			validarLocal(localDAO, localId, c);
+
+			int loteId = loteDAO.cadastrarLote(new Lote(produtoId, codigoLote, validade, qtd), c);
+			saldoDAO.somar(loteId, localId, qtd, c);
+			movimentacaoDAO.registrar(nova(TipoMovimentacao.ENTRADA, loteId, null, localId, qtd, usuarioId), c);
 
 			c.commit();
 		} catch (SQLException | RuntimeException e) {
 			c.rollback();
 			throw e;
 		} finally {
-			c.setAutoCommit(true);
+			if (c != null && !c.isClosed()) {
+				c.setAutoCommit(true);
+				c.close();
+			}
 		}
 	}
 
-	// SAÍDA FIFO: consome primeiro o lote mais antigo; se não bastar, passa para o próximo
 	public List<String> registrarSaida(int produtoId, int localId, BigDecimal qtd, int usuarioId)
 			throws SQLException {
 
 		validarQuantidade(qtd);
-		validarLocal(localId);
 
 		Connection c = Conexao.getConexao();
 		List<String> resumo = new ArrayList<>();
 		try {
 			c.setAutoCommit(false);
 
+			LocalEstoqueDAO localDAO = new LocalEstoqueDAO(c);
+			LoteDAO loteDAO = new LoteDAO(c);
+			SaldoLoteLocalDAO saldoDAO = new SaldoLoteLocalDAO(c);
+			MovimentacaoDAO movimentacaoDAO = new MovimentacaoDAO(c);
+
+			validarLocal(localDAO, localId, c);
+
 			BigDecimal restante = qtd;
-			for (SaldoLoteLocal s : saldoDAO.listarFifo(produtoId, localId)) {
+			for (SaldoLoteLocal s : saldoDAO.listarFifo(produtoId, localId, c)) {
 				if (restante.signum() == 0) {
 					break;
 				}
 				BigDecimal usar = restante.min(s.getQuantidade());
 
-				saldoDAO.somar(s.getLoteId(), localId, usar.negate());
-				movimentacaoDAO.registrar(nova(TipoMovimentacao.SAIDA, s.getLoteId(), localId, null, usar, usuarioId));
+				saldoDAO.somar(s.getLoteId(), localId, usar.negate(), c);
+				movimentacaoDAO.registrar(nova(TipoMovimentacao.SAIDA, s.getLoteId(), localId, null, usar, usuarioId), c);
 
-				resumo.add(descreverLote(s.getLoteId()) + " -> " + usar);
+				resumo.add(descreverLote(loteDAO, s.getLoteId(), c) + " -> " + usar);
 				restante = restante.subtract(usar);
 			}
 
@@ -92,12 +98,14 @@ public class EstoqueService {
 			c.rollback();
 			throw e;
 		} finally {
-			c.setAutoCommit(true);
+			if (c != null && !c.isClosed()) {
+				c.setAutoCommit(true);
+				c.close();
+			}
 		}
 		return resumo;
 	}
 
-	// TRANSFERÊNCIA: tira do local de origem (em ordem FIFO) e coloca no local de destino
 	public List<String> transferir(int produtoId, int origemId, int destinoId, BigDecimal qtd, int usuarioId)
 			throws SQLException {
 
@@ -105,27 +113,33 @@ public class EstoqueService {
 		if (origemId == destinoId) {
 			throw new IllegalArgumentException("Origem e destino não podem ser o mesmo local.");
 		}
-		validarLocal(origemId);
-		validarLocal(destinoId);
 
 		Connection c = Conexao.getConexao();
 		List<String> resumo = new ArrayList<>();
 		try {
 			c.setAutoCommit(false);
 
+			LocalEstoqueDAO localDAO = new LocalEstoqueDAO(c);
+			LoteDAO loteDAO = new LoteDAO(c);
+			SaldoLoteLocalDAO saldoDAO = new SaldoLoteLocalDAO(c);
+			MovimentacaoDAO movimentacaoDAO = new MovimentacaoDAO(c);
+
+			validarLocal(localDAO, origemId, c);
+			validarLocal(localDAO, destinoId, c);
+
 			BigDecimal restante = qtd;
-			for (SaldoLoteLocal s : saldoDAO.listarFifo(produtoId, origemId)) {
+			for (SaldoLoteLocal s : saldoDAO.listarFifo(produtoId, origemId, c)) {
 				if (restante.signum() == 0) {
 					break;
 				}
 				BigDecimal usar = restante.min(s.getQuantidade());
 
-				saldoDAO.somar(s.getLoteId(), origemId, usar.negate());
-				saldoDAO.somar(s.getLoteId(), destinoId, usar);
+				saldoDAO.somar(s.getLoteId(), origemId, usar.negate(), c);
+				saldoDAO.somar(s.getLoteId(), destinoId, usar, c);
 				movimentacaoDAO.registrar(
-						nova(TipoMovimentacao.TRANSFERENCIA, s.getLoteId(), origemId, destinoId, usar, usuarioId));
+						nova(TipoMovimentacao.TRANSFERENCIA, s.getLoteId(), origemId, destinoId, usar, usuarioId), c);
 
-				resumo.add(descreverLote(s.getLoteId()) + " -> " + usar);
+				resumo.add(descreverLote(loteDAO, s.getLoteId(), c) + " -> " + usar);
 				restante = restante.subtract(usar);
 			}
 
@@ -138,7 +152,10 @@ public class EstoqueService {
 			c.rollback();
 			throw e;
 		} finally {
-			c.setAutoCommit(true);
+			if (c != null && !c.isClosed()) {
+				c.setAutoCommit(true);
+				c.close();
+			}
 		}
 		return resumo;
 	}
@@ -148,8 +165,8 @@ public class EstoqueService {
 		return new Movimentacao(tipo, loteId, origem, destino, qtd, usuarioId);
 	}
 
-	private String descreverLote(int loteId) {
-		Lote l = loteDAO.buscarPorId(loteId);
+	private String descreverLote(LoteDAO loteDAO, int loteId, Connection c) throws SQLException {
+		Lote l = loteDAO.buscarPorId(loteId, c);
 		return l != null ? "Lote " + l.getCodigoLote() + " (id " + loteId + ")" : "Lote " + loteId;
 	}
 
@@ -159,10 +176,9 @@ public class EstoqueService {
 		}
 	}
 
-	private void validarLocal(int localId) {
-		if (localDAO.buscarPorId(localId) == null) {
+	private void validarLocal(LocalEstoqueDAO localDAO, int localId, Connection c) throws SQLException {
+		if (localDAO.buscarPorId(localId, c) == null) {
 			throw new IllegalArgumentException("Local de estoque " + localId + " não encontrado.");
 		}
 	}
-
 }

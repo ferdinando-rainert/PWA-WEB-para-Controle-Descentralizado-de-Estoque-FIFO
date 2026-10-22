@@ -1,6 +1,7 @@
 package DAO;
 
 import java.math.BigDecimal;
+import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
@@ -12,45 +13,57 @@ import entities.Produto;
 
 public class ProdutoDAO {
 
-	// Método para cadastrar Produto com validação da RN P03
-	public void cadastrarProduto(Produto p) {
+	private Connection conn;
 
-		// RN P03: Valida se o estoque mínimo é negativo
+	// Construtor sem parâmetros (para operações simples/consultas isoladas)
+	public ProdutoDAO() {
+	}
+
+	// Construtor com conexão (para operações dentro de uma mesma transação)
+	public ProdutoDAO(Connection conn) {
+		this.conn = conn;
+	}
+
+	private Connection getEffectiveConnection() throws SQLException {
+		return (this.conn != null && !this.conn.isClosed()) ? this.conn : Conexao.getConexao();
+	}
+
+	// Cadastrar produto na conexão padrão
+	public void cadastrarProduto(Produto p) throws SQLException {
+		cadastrarProduto(p, getEffectiveConnection());
+	}
+
+	// Cadastrar produto dentro de uma transação
+	public void cadastrarProduto(Produto p, Connection connection) throws SQLException {
 		if (p.getEstoqueMinimo() != null && p.getEstoqueMinimo().compareTo(BigDecimal.ZERO) < 0) {
-			System.err.println("Erro ao cadastrar: O estoque mínimo deve ser maior ou igual a 0.");
-			return;
+			throw new IllegalArgumentException("Erro ao cadastrar: O estoque mínimo deve ser maior ou igual a 0.");
 		}
 
 		String sql = "INSERT INTO produto (sku, nome, unidade_medida, estoque_minimo) VALUES (?, ?, ?, ?)";
 
-		try (PreparedStatement stmt = Conexao.getConexao().prepareStatement(sql)) {
-
+		try (PreparedStatement stmt = connection.prepareStatement(sql)) {
 			stmt.setString(1, p.getSku());
 			stmt.setString(2, p.getNome());
 			stmt.setString(3, p.getUnidadeMedida());
 			stmt.setBigDecimal(4, p.getEstoqueMinimo());
-
 			stmt.executeUpdate();
-			System.out.println("Produto cadastrado!");
-
-		} catch (SQLException e) {
-			System.err.println("Erro ao cadastrar o Produto: " + e.getMessage());
 		}
 	}
 
-	// Método para atualizar Produto pelo ID com validação da RN P03
-	public void atualizarProduto(Produto p) {
+	// Atualizar produto na conexão padrão
+	public void atualizarProduto(Produto p) throws SQLException {
+		atualizarProduto(p, getEffectiveConnection());
+	}
 
+	// Atualizar produto dentro de uma transação
+	public void atualizarProduto(Produto p, Connection connection) throws SQLException {
 		if (p.getEstoqueMinimo() != null && p.getEstoqueMinimo().compareTo(BigDecimal.ZERO) < 0) {
-			System.err.println("Erro ao atualizar: O estoque mínimo deve ser maior ou igual a 0.");
-			return;
+			throw new IllegalArgumentException("Erro ao atualizar: O estoque mínimo deve ser maior ou igual a 0.");
 		}
 
-		// A instrução só afetará linhas onde id bate E ativo seja TRUE
 		String sql = "UPDATE produto SET sku = ?, nome = ?, unidade_medida = ?, estoque_minimo = ? WHERE id = ? AND ativo = TRUE";
 
-		try (PreparedStatement stmt = Conexao.getConexao().prepareStatement(sql)) {
-
+		try (PreparedStatement stmt = connection.prepareStatement(sql)) {
 			stmt.setString(1, p.getSku());
 			stmt.setString(2, p.getNome());
 			stmt.setString(3, p.getUnidadeMedida());
@@ -58,78 +71,79 @@ public class ProdutoDAO {
 			stmt.setInt(5, p.getId());
 
 			int linhas = stmt.executeUpdate();
-			if (linhas > 0) {
-				System.out.println("Produto atualizado!");
-			} else {
-				System.err.println("Erro: Produto inativo ou não encontrado. Alteração não permitida.");
+			if (linhas == 0) {
+				throw new SQLException("Erro: Produto inativo ou não encontrado. Alteração não permitida.");
 			}
-
-		} catch (SQLException e) {
-			System.err.println("Erro ao atualizar o Produto: " + e.getMessage());
 		}
 	}
 
-	// Método para inativar Produto (o histórico não é apagado)
-	public void inativarProduto(int id) {
+	// Inativar produto na conexão padrão
+	public void inativarProduto(int id) throws SQLException {
+		inativarProduto(id, getEffectiveConnection());
+	}
 
+	// Inativar produto dentro de uma transação
+	public void inativarProduto(int id, Connection connection) throws SQLException {
 		String sql = "UPDATE produto SET ativo = FALSE WHERE id = ?";
 
-		try (PreparedStatement stmt = Conexao.getConexao().prepareStatement(sql)) {
-
+		try (PreparedStatement stmt = connection.prepareStatement(sql)) {
 			stmt.setInt(1, id);
 			int linhas = stmt.executeUpdate();
-			System.out.println(linhas > 0 ? "Produto inativado!" : "Produto não encontrado.");
-
-		} catch (SQLException e) {
-			System.err.println("Erro ao inativar o Produto: " + e.getMessage());
+			if (linhas == 0) {
+				throw new SQLException("Erro ao inativar: Produto não encontrado.");
+			}
 		}
 	}
 
-	// Método para buscar Produto pelo ID (retorna null se não existir)
-	public Produto buscarPorId(int id) {
+	// Buscar produto por ID na conexão padrão
+	public Produto buscarPorId(int id) throws SQLException {
+		return buscarPorId(id, getEffectiveConnection());
+	}
 
+	// Buscar produto por ID dentro de uma transação
+	public Produto buscarPorId(int id, Connection connection) throws SQLException {
 		String sql = "SELECT * FROM produto WHERE id = ?";
 
-		try (PreparedStatement stmt = Conexao.getConexao().prepareStatement(sql)) {
-
+		try (PreparedStatement stmt = connection.prepareStatement(sql)) {
 			stmt.setInt(1, id);
 			try (ResultSet rs = stmt.executeQuery()) {
 				if (rs.next()) {
 					return mapear(rs);
 				}
 			}
-
-		} catch (SQLException e) {
-			System.err.println("Erro ao buscar o Produto: " + e.getMessage());
 		}
 		return null;
 	}
 
-	// Método para listar todos os Produtos
-	public List<Produto> listarTodos() {
+	// Listar todos os produtos
+	public List<Produto> listarTodos() throws SQLException {
+		return listarTodos(getEffectiveConnection());
+	}
 
+	// Listar todos os produtos dentro de uma transação
+	public List<Produto> listarTodos(Connection connection) throws SQLException {
 		List<Produto> lista = new ArrayList<>();
 		String sql = "SELECT * FROM produto ORDER BY nome";
 
-		try (PreparedStatement stmt = Conexao.getConexao().prepareStatement(sql);
+		try (PreparedStatement stmt = connection.prepareStatement(sql);
 				ResultSet rs = stmt.executeQuery()) {
 
 			while (rs.next()) {
 				lista.add(mapear(rs));
 			}
-
-		} catch (SQLException e) {
-			System.err.println("Erro ao listar os Produtos: " + e.getMessage());
 		}
 		return lista;
 	}
 
 	private Produto mapear(ResultSet rs) throws SQLException {
-		Produto p = new Produto(rs.getString("sku"), rs.getString("nome"), rs.getString("unidade_medida"),
-				rs.getBigDecimal("estoque_minimo"));
+		Produto p = new Produto(
+			rs.getString("sku"),
+			rs.getString("nome"),
+			rs.getString("unidade_medida"),
+			rs.getBigDecimal("estoque_minimo")
+		);
 		p.setId(rs.getInt("id"));
 		p.setAtivo(rs.getBoolean("ativo"));
 		return p;
 	}
-
 }

@@ -82,74 +82,87 @@ public class Main {
 			MenuProduto.menu();
 			opcao = lerInt("Escolha: ");
 
-			switch (opcao) {
-			case 1:
-				String sku = lerTexto("SKU: ");
-				String nome = lerTexto("Nome: ");
-				String unidade = lerTexto("Unidade de medida (UN, KG, L...): ");
-				BigDecimal minimo = lerDecimal("Estoque mínimo: ");
-				produtoDAO.cadastrarProduto(new Produto(sku, nome, unidade, minimo));
-				break;
+			try {
+				switch (opcao) {
+				case 1:
+					String sku = lerTexto("SKU: ");
+					String nome = lerTexto("Nome: ");
+					String unidade = lerTexto("Unidade de medida (UN, KG, L...): ");
+					BigDecimal minimo = lerDecimal("Estoque mínimo: ");
+					produtoDAO.cadastrarProduto(new Produto(sku, nome, unidade, minimo));
+					break;
 
-			case 2:
-				for (Produto p : produtoDAO.listarTodos()) {
-					System.out.printf("[%d] %s - %s (%s) | mínimo: %s | %s%n", p.getId(), p.getSku(), p.getNome(),
-							p.getUnidadeMedida(), p.getEstoqueMinimo(), p.isAtivo() ? "ativo" : "inativo");
+				case 2:
+					for (Produto p : produtoDAO.listarTodos()) {
+						System.out.printf("[%d] %s - %s (%s) | mínimo: %s | %s%n", p.getId(), p.getSku(), p.getNome(),
+								p.getUnidadeMedida(), p.getEstoqueMinimo(), p.isAtivo() ? "ativo" : "inativo");
+					}
+					break;
+
+				case 3:
+					Produto p = new Produto();
+					p.setId(lerInt("ID do produto a atualizar: "));
+					p.setSku(lerTexto("Novo SKU: "));
+					p.setNome(lerTexto("Novo nome: "));
+					p.setUnidadeMedida(lerTexto("Nova unidade de medida: "));
+					p.setEstoqueMinimo(lerDecimal("Novo estoque mínimo: "));
+					produtoDAO.atualizarProduto(p);
+					break;
+
+				case 4:
+					produtoDAO.inativarProduto(lerInt("ID do produto a inativar: "));
+					break;
+
+				case 0:
+					break;
+				default:
+					System.out.println("Opção inválida!");
 				}
-				break;
-
-			case 3:
-				Produto p = new Produto();
-				p.setId(lerInt("ID do produto a atualizar: "));
-				p.setSku(lerTexto("Novo SKU: "));
-				p.setNome(lerTexto("Novo nome: "));
-				p.setUnidadeMedida(lerTexto("Nova unidade de medida: "));
-				p.setEstoqueMinimo(lerDecimal("Novo estoque mínimo: "));
-				produtoDAO.atualizarProduto(p);
-				break;
-
-			case 4:
-				produtoDAO.inativarProduto(lerInt("ID do produto a inativar: "));
-				break;
-
-			case 0:
-				break;
-			default:
-				System.out.println("Opção inválida!");
+			} catch (IllegalArgumentException e) {
+				System.out.println("Não foi possível concluir: " + e.getMessage());
+			} catch (SQLException e) {
+				System.out.println("Erro no banco de dados: " + e.getMessage());
 			}
 		}
 	}
 
 	// ------ MENU LOCAL ------
-	private static void menuLocal() {
+	// ------ MENU LOCAL ------
+		private static void menuLocal() {
 
-		int opcao = -1;
+			int opcao = -1;
 
-		while (opcao != 0) {
-			MenuLocal.menu();
-			opcao = lerInt("Escolha: ");
+			while (opcao != 0) {
+				MenuLocal.menu();
+				opcao = lerInt("Escolha: ");
 
-			switch (opcao) {
-			case 1:
-				String nome = lerTexto("Nome do local: ");
-				String descricao = lerTexto("Descrição: ");
-				localDAO.cadastrarLocal(new LocalEstoque(nome, descricao));
-				break;
+				try {
+					switch (opcao) {
+					case 1:
+						String nome = lerTexto("Nome do local: ");
+						String descricao = lerTexto("Descrição: ");
+						localDAO.cadastrarLocal(new LocalEstoque(nome, descricao));
+						break;
 
-			case 2:
-				for (LocalEstoque l : localDAO.listarTodos()) {
-					System.out.printf("[%d] %s - %s | %s%n", l.getId(), l.getNome(), l.getDescricao(),
-							l.isAtivo() ? "ativo" : "inativo");
+					case 2:
+						for (LocalEstoque l : localDAO.listarTodos()) {
+							System.out.printf("[%d] %s - %s | %s%n", l.getId(), l.getNome(), l.getDescricao(),
+									l.isAtivo() ? "ativo" : "inativo");
+						}
+						break;
+
+					case 0:
+						break;
+					default:
+						System.out.println("Opção inválida!");
+					}
+				} catch (IllegalArgumentException e) {
+					System.out.println("Não foi possível concluir: " + e.getMessage());
+				} catch (SQLException e) {
+					System.out.println("Erro no banco de dados: " + e.getMessage());
 				}
-				break;
-
-			case 0:
-				break;
-			default:
-				System.out.println("Opção inválida!");
 			}
 		}
-	}
 
 	// ------ MENU ESTOQUE ------
 	private static void menuEstoque() {
