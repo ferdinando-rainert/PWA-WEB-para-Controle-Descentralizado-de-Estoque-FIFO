@@ -6,11 +6,10 @@ import java.sql.SQLException;
 
 public class Conexao {
 
-	private static final String URL =
-			"jdbc:mysql://localhost:3305/estoque_fifo";
-
-	private static final String USUARIO = "root";
-	private static final String SENHA = "";
+	private static final String URL = System.getenv().getOrDefault("FIFO_DB_URL",
+			"jdbc:mysql://localhost:3305/estoque_fifo?serverTimezone=UTC&useSSL=false");
+	private static final String USUARIO = System.getenv().getOrDefault("FIFO_DB_USER", "root");
+	private static final String SENHA = System.getenv().getOrDefault("FIFO_DB_PASSWORD", "");
 
 	public static Connection getConexao() throws SQLException {
 		return DriverManager.getConnection(URL, USUARIO, SENHA);
@@ -30,5 +29,4 @@ public class Conexao {
 		}
 	}
 }
-
 

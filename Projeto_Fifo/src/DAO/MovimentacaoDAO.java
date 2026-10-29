@@ -1,6 +1,5 @@
 package DAO;
 
-import java.math.BigDecimal;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
@@ -62,36 +61,13 @@ public class MovimentacaoDAO {
 		}
 	}
 
-	// Busca lotes com saldo disponível para consumo FIFO aplicando a trava FOR UPDATE (bloqueio pessimista)
-	public List<LoteEstoque> buscarLotesDisponiveisFIFO(int produtoId, Connection connection) throws SQLException {
-		List<LoteEstoque> lotes = new ArrayList<>();
-		String sql = "SELECT id, quantidade_saldo, preco_custo FROM lote "
-				+ "WHERE produto_id = ? AND quantidade_saldo > 0 "
-				+ "ORDER BY data_entrada ASC, id ASC FOR UPDATE";
-
+	public Long buscarIdPorUuidCliente(String uuidCliente, Connection connection) throws SQLException {
+		String sql = "SELECT id FROM movimentacao WHERE uuid_cliente = ?";
 		try (PreparedStatement stmt = connection.prepareStatement(sql)) {
-			stmt.setInt(1, produtoId);
+			stmt.setString(1, uuidCliente);
 			try (ResultSet rs = stmt.executeQuery()) {
-				while (rs.next()) {
-					lotes.add(new LoteEstoque(
-						rs.getInt("id"),
-						rs.getBigDecimal("quantidade_saldo"),
-						rs.getBigDecimal("preco_custo")
-					));
-				}
+				return rs.next() ? rs.getLong("id") : null;
 			}
-		}
-		return lotes;
-	}
-
-	// Atualiza o saldo restante do lote que foi consumido pela saída FIFO
-	public void atualizarSaldoLote(int loteId, BigDecimal novoSaldo, Connection connection) throws SQLException {
-		String sql = "UPDATE lote SET quantidade_saldo = ? WHERE id = ?";
-
-		try (PreparedStatement stmt = connection.prepareStatement(sql)) {
-			stmt.setBigDecimal(1, novoSaldo);
-			stmt.setInt(2, loteId);
-			stmt.executeUpdate();
 		}
 	}
 
@@ -132,20 +108,4 @@ public class MovimentacaoDAO {
 		return lista;
 	}
 
-	// Classe auxiliar interna para mapear os lotes retornados no FIFO
-	public static class LoteEstoque {
-		private int id;
-		private BigDecimal quantidadeSaldo;
-		private BigDecimal precoCusto;
-
-		public LoteEstoque(int id, BigDecimal quantidadeSaldo, BigDecimal precoCusto) {
-			this.id = id;
-			this.quantidadeSaldo = quantidadeSaldo;
-			this.precoCusto = precoCusto;
-		}
-
-		public int getId() { return id; }
-		public BigDecimal getQuantidadeSaldo() { return quantidadeSaldo; }
-		public BigDecimal getPrecoCusto() { return precoCusto; }
-	}
 }

@@ -171,12 +171,14 @@ Dessa forma, o lote mais antigo é consumido primeiro.
 
 # 🏗️ Arquitetura
 
-A aplicação será estruturada utilizando uma arquitetura baseada em **API REST**, separando o frontend, backend e banco de dados.
+A aplicação está conectada por uma **API REST local**, separando o frontend, backend e banco de dados.
+
+Para configurar o MySQL, iniciar o serviço Java e abrir o frontend, siga o [guia de execução e integração](../Front-End/README.md).
 
 ```text
 ┌──────────────────────────────────┐
 │            FRONTEND              │
-│       React + TypeScript         │
+│          HTML + JavaScript       │
 │              PWA                 │
 └────────────────┬─────────────────┘
                  │
@@ -184,16 +186,11 @@ A aplicação será estruturada utilizando uma arquitetura baseada em **API REST
                  ▼
 ┌──────────────────────────────────┐
 │             BACKEND              │
-│         Java + Spring Boot       │
-│                                  │
-│ Controllers                      │
-│ Services                         │
-│ Repositories                     │
-│ DTOs                             │
-│ Security                         │
+│       Java 17 + HttpServer       │
+│       Serviços + JDBC            │
 └────────────────┬─────────────────┘
                  │
-                 │ JPA / Hibernate
+                 │ JDBC
                  ▼
 ┌──────────────────────────────────┐
 │              MySQL               │
@@ -214,9 +211,9 @@ O fluxo principal do sistema será realizado da seguinte maneira:
 
 ```mermaid
 flowchart TD
-    A[Usuário] --> B[PWA - React + TypeScript]
+    A[Usuário] --> B[PWA - HTML + JavaScript]
 
-    B --> C[API REST - Spring Boot]
+    B --> C[API REST - Java HttpServer]
 
     C --> D[Autenticação e Autorização]
 
@@ -270,21 +267,15 @@ Usuário
 ## Backend
 
 * **Java**
-* **Spring Boot**
-* **Spring Data JPA**
-* **Hibernate**
-* **Spring Security**
-* **JWT**
-* **Maven**
+* **Java 17 HttpServer**
+* **JDBC**
+* **MySQL Connector/J**
 * **JUnit**
-* **Mockito**
 
 ## Frontend
 
-* **React**
-* **TypeScript**
-* **Vite**
 * **HTML5**
+* **JavaScript**
 * **CSS3**
 * **PWA**
 
@@ -577,7 +568,7 @@ Modelagem das entidades e relacionamentos.
 
 ### Fase 3 — Backend
 
-Desenvolvimento da API REST utilizando Java e Spring Boot.
+API REST Java disponível em `Projeto_Fifo/src/application/ApiServer.java`.
 
 ### Fase 4 — Regra FIFO
 
@@ -585,7 +576,7 @@ Implementação e testes da lógica de controle FIFO.
 
 ### Fase 5 — Frontend
 
-Desenvolvimento da interface utilizando React e TypeScript.
+Interface web em `Front-End`, integrada à API REST por `Front-End/api.js`.
 
 ### Fase 6 — Segurança
 

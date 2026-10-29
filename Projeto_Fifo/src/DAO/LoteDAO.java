@@ -26,13 +26,15 @@ public class LoteDAO {
 	}
 
 	public int cadastrarLote(Lote lote, Connection connection) throws SQLException {
-		String sql = "INSERT INTO lote (produto_id, codigo_lote, data_validade, quantidade_inicial) VALUES (?, ?, ?, ?) RETURNING id";
-		try (PreparedStatement stmt = connection.prepareStatement(sql)) {
+		String sql = "INSERT INTO lote (produto_id, codigo_lote, data_entrada, data_validade, quantidade_inicial) "
+				+ "VALUES (?, ?, CURRENT_TIMESTAMP, ?, ?)";
+		try (PreparedStatement stmt = connection.prepareStatement(sql, PreparedStatement.RETURN_GENERATED_KEYS)) {
 			stmt.setInt(1, lote.getProdutoId());
 			stmt.setString(2, lote.getCodigoLote());
 			stmt.setObject(3, lote.getDataValidade());
 			stmt.setBigDecimal(4, lote.getQuantidadeInicial());
-			try (ResultSet rs = stmt.executeQuery()) {
+			stmt.executeUpdate();
+			try (ResultSet rs = stmt.getGeneratedKeys()) {
 				if (rs.next()) {
 					return rs.getInt(1);
 				}
